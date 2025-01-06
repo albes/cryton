@@ -1,18 +1,20 @@
 #include <stdio.h>
 #include <string.h>
-#include <stdbool.h>
 
+#include "common.h"
 #include "scanner.h"
 
 const char* TokenName[] = {
     "TOKEN_LEFT_PAREN", "TOKEN_RIGHT_PAREN", "TOKEN_COLON",
     "TOKEN_PLUS", "TOKEN_MINUS", "TOKEN_SLASH", "TOKEN_STAR",
-    "TOKEN_LESS", "TOKEN_GREATER", 
+    "TOKEN_LESS", "TOKEN_GREATER",
 
     "TOKEN_EQUAL", "TOKEN_EQUAL_EQUAL",
+    "TOKEN_BANG", "TOKEN_BANG_EQUAL",
 
     "TOKEN_AND", "TOKEN_OR", "TOKEN_NOT",
-    "TOKEN_IF", "TOKEN_ELIF", "TOKEN_ELSE", "TOKEN_WHILE", 
+    "TOKEN_IF", "TOKEN_ELIF", "TOKEN_ELSE", "TOKEN_WHILE",
+    "TOKEN_PRINT",
 
     "TOKEN_IDENTIFIER", "TOKEN_NUMBER",
 
@@ -38,6 +40,16 @@ static Token makeToken(TokenType type) {
     token.type = type;
     token.start = scanner.start;
     token.length = (int)(scanner.current - scanner.start);
+    token.line = scanner.line;
+
+    return token;
+}
+
+static Token makeTokenCustom(TokenType type, const char* lexeme) {
+    Token token;
+    token.type = type;
+    token.start = lexeme;
+    token.length = strlen(lexeme);
     token.line = scanner.line;
 
     return token;
@@ -129,6 +141,7 @@ static TokenType identifierType() {
         case 'i' : return checkKeyword(1, 1, "f", TOKEN_IF);
         case 'n' : return checkKeyword(1, 2, "ot", TOKEN_NOT);
         case 'o' : return checkKeyword(1, 1, "r", TOKEN_OR);
+        case 'p' : return checkKeyword(1, 4, "rint", TOKEN_PRINT);
         case 'w' : return checkKeyword(1, 4, "hile", TOKEN_WHILE);
     }
 
@@ -187,20 +200,21 @@ static Token indent() {
 
         scanner.indentLevel++;
         scanner.indentStack[scanner.indentLevel] = scanner.indent;
-        return makeToken(TOKEN_INDENT);
+
+        return makeTokenCustom(TOKEN_INDENT, "INDENT");
     }
 
     scanner.indentLevel--;
 
     if (scanner.indent <= scanner.indentStack[scanner.indentLevel]) {
-        return makeToken(TOKEN_DEDENT);
+        return makeTokenCustom(TOKEN_DEDENT, "DEDENT");
     }
 
     return errorToken("Invalid indent.");
 }
 
 static Token newline() {
-    Token token = makeToken(TOKEN_NEWLINE);
+    Token token = makeTokenCustom(TOKEN_NEWLINE, "NEWLINE");
     scanner.line++;
     consumeIndent();
     return token;
@@ -229,6 +243,8 @@ Token scanToken() {
         case '<' : return makeToken(TOKEN_LESS);
         case '>' : return makeToken(TOKEN_GREATER);
 
+        case '!' :
+            return makeToken(match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
         case '=' :
             return makeToken(match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
 
