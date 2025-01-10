@@ -1,7 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "common.h"
+#include "object.h"
 #include "scanner.h"
+#include "parser.h"
+#include "interpreter.h"
 
 static char* readFile(const char* path) {
     FILE* file = fopen(path, "rb");
@@ -41,30 +45,134 @@ static char* readFile(const char* path) {
     return buffer;
 }
 
+static void printExpr(Expr* expr) {
+    if (expr == NULL) {
+        printf("NULL\n");
+    } else if (expr->type == EXPR_BINARY) {
+        ExprBinary* e = (ExprBinary*)expr;
+
+        printf("Binary %s\n", TokenName[e->operator]);
+
+        printExpr(e->left);
+        printExpr(e->right);
+    } else if (expr->type == EXPR_UNARY) {
+        ExprUnary* e = (ExprUnary*)expr;
+
+        printf("Unary %s\n", TokenName[e->operator]);
+        printExpr(e->right);
+    } else if (expr->type == EXPR_NUMBER) {
+        ExprNumber* e = (ExprNumber*)expr;
+
+        printf("Number %d\n", e->value);
+    } else if (expr->type == EXPR_VAR) {
+        ExprVar* e = (ExprVar*)expr;
+
+        printf("Var %s\n", e->name->chars);
+    } else {
+        printf("Unknown expr\n");
+    }
+}
+
+static void printStmt(Stmt* stmt);
+
+static void printStmtSeq(StmtSeq* stmt) {
+    printf("Sequence\n");
+    printStmt(stmt->stmt);
+    if (stmt->next)
+        printStmtSeq(stmt->next);
+    else
+        printf("End sequence\n");
+}
+
+static void printStmtAssign(StmtAssign* stmt) {
+    printf("Assign\n");
+    printExpr((Expr*)stmt->left);
+    printExpr(stmt->right);
+}
+
+static void printStmtPrint(StmtPrint* stmt) {
+    printf("Print\n");
+    printExpr(stmt->expr);
+}
+
+static void printStmtIf(StmtIf* stmt) {
+    printf("If\n");
+    printExpr(stmt->condition);
+    printStmtSeq(stmt->thenBranch);
+    if (stmt->elseBranch) {
+        printf("Else\n");
+        printStmt(stmt->elseBranch);
+    }
+}
+
+static void printStmtWhile(StmtWhile* stmt) {
+    printf("While\n");
+    printExpr(stmt->condition);
+    printStmtSeq(stmt->body);
+}
+
+static void printStmt(Stmt* stmt) {
+    if (stmt == NULL) {
+        printf("NULL\n");
+        return;
+    }
+
+    switch (stmt->type) {
+        case STMT_SEQUENCE : printStmtSeq((StmtSeq*)stmt);       break;
+        case STMT_ASSIGN   : printStmtAssign((StmtAssign*)stmt); break;
+        case STMT_PRINT    : printStmtPrint((StmtPrint*)stmt);   break;
+        case STMT_IF       : printStmtIf((StmtIf*)stmt);         break;
+        case STMT_WHILE    : printStmtWhile((StmtWhile*)stmt);   break;
+        default            : printf("Unknown stmt\n");           break;
+    }
+}
+
 static void runFile(const char* path) {
     char* source = readFile(path);
 
-    initScanner(source);
+    // initScanner(source);
 
-    int line = -1;
+    // int line = -1;
 
-    for (;;) {
-        Token token = scanToken();
+    // for (;;) {
+    //     Token token = scanToken();
 
-        if (token.line != line) {
-            printf("%4d ", token.line);
-            line = token.line;
-        } else {
-            printf("   | ");
-        }
+    //     if (token.line != line) {
+    //         printf("%4d ", token.line);
+    //         line = token.line;
+    //     } else {
+    //         printf("   | ");
+    //     }
 
-        if (token.type != TOKEN_NEWLINE)
-            printf("%s '%.*s'\n", TokenName[token.type], token.length, token.start);
-        else
-            printf("%s\n", TokenName[token.type]);
+    //     printf("%s '%.*s'\n", TokenName[token.type], token.length, token.start);
 
-        if (token.type == TOKEN_EOF) break;
-    }
+    //     if (token.type == TOKEN_EOF) break;
+    // }
+
+    // **********************************************
+
+    // Expr* expr;
+
+    // if (!parse(source, &expr))
+    //     printf("ANSWER: %d\n", interpret(expr));
+
+    // printExpr(expr);
+
+    // **********************************************
+
+    // Stmt* stmt;
+    // parse(source, &stmt);
+    // printStmt(stmt);
+
+    // **********************************************
+
+    Stmt* stmt;
+
+    if (!parse(source, &stmt))
+        interpretStmt(stmt);
+    
+    // printf("TREE\n");
+    // printStmt(stmt);
 
     free(source);
 }
@@ -85,6 +193,8 @@ static void repl() {
 }
 
 int main(int argc, char* argv[]) {
+    initInterp();
+
     if (argc == 1) {
         repl();
     } else if (argc == 2) {
@@ -94,5 +204,6 @@ int main(int argc, char* argv[]) {
         exit(64);
     }
 
+    freeInterp();
     return 0;
 }
