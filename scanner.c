@@ -109,6 +109,7 @@ static void skipWhitespace() {
 
         switch (c) {
             case ' ':
+            case '\r':
             case '\t':
                 advance();
                 break;
@@ -176,6 +177,9 @@ static void consumeIndent() {
                 break;
             case '\t':
                 scanner.indent += 8;
+                advance();
+                break;
+            case '\r':
                 advance();
                 break;
             case '\n':

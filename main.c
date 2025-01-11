@@ -129,7 +129,7 @@ static void runFile(const char* path) {
 
     initScanner(source);
 
-    int line = -1;
+    // int line = -1;
 
     // for (;;) {
     //     Token token = scanToken();
