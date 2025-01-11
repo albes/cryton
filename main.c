@@ -171,7 +171,18 @@ static void repl() {
 
         currentSize += strlen(head);
 
-        // escape newline with backslash
+        // Remove characters with ASCII > 127
+        int writeIndex = 0;
+        for (int readIndex = 0; readIndex < currentSize; ++readIndex) {
+            unsigned char c = (unsigned char)line[readIndex];
+            if (c <= 127) {
+                line[writeIndex++] = line[readIndex];  // Keep ASCII characters
+            }
+        }
+        currentSize = writeIndex;  // Update current size after removal
+        line[writeIndex] = '\0';   // Null-terminate the string
+
+        // Escape newline with backslash
         if (currentSize > 1 && line[currentSize - 2] == '\\') {
             line[currentSize - 2] = '\n';
             --currentSize;
@@ -179,12 +190,12 @@ static void repl() {
             continue;
         }
 
-        // check for whitespace
+        // Check for whitespace
         head = line;
-        while (*head != '\0' && isspace(*head))
+        while (*head != '\0' && isspace((unsigned char)*head))
             ++head;
 
-        // interpret if lines are not blank
+        // Interpret if lines are not blank
         if (*head != '\0') {
             Stmt* stmts;
             if (parse(line, &stmts)) {
@@ -193,7 +204,7 @@ static void repl() {
             freeAST(stmts);
         }
 
-        // reset line
+        // Reset line
         currentSize = 0;
         head = line;
     }
