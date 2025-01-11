@@ -38,47 +38,42 @@ typedef struct {
 } ExprVar;
 
 typedef enum {
-    STMT_SEQUENCE,
     STMT_ASSIGN, STMT_PRINT,
     STMT_IF, STMT_WHILE
 } StmtType;
 
-typedef struct {
-    StmtType type;
-} Stmt;
+typedef struct Stmt Stmt;
 
-typedef struct StmtSeq StmtSeq;
-
-struct StmtSeq {
+struct Stmt {
     StmtType type;
-    Stmt* stmt;
-    StmtSeq* next;
+    Stmt* next;
 };
 
 typedef struct {
-    StmtType type;
+    Stmt stmt;
     ExprVar* left;
     Expr* right;
 } StmtAssign;
 
 typedef struct {
-    StmtType type;
+    Stmt stmt;
     Expr* expr;
 } StmtPrint;
 
 typedef struct {
-    StmtType type;
+    Stmt stmt;
     Expr* condition;
-    StmtSeq* thenBranch;
+    Stmt* thenBranch;
     Stmt* elseBranch;
 } StmtIf;
 
 typedef struct {
-    StmtType type;
+    Stmt stmt;
     Expr* condition;
-    StmtSeq* body;
+    Stmt* body;
 } StmtWhile;
 
-bool parse(const char* source, Stmt** stmt);
+bool parse(const char* source, Stmt** stmts);
+void freeAST(Stmt* stmts);
 
 #endif

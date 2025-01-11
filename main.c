@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
 #include "common.h"
 #include "object.h"
@@ -75,15 +77,6 @@ static void printExpr(Expr* expr) {
 
 static void printStmt(Stmt* stmt);
 
-static void printStmtSeq(StmtSeq* stmt) {
-    printf("Sequence\n");
-    printStmt(stmt->stmt);
-    if (stmt->next)
-        printStmtSeq(stmt->next);
-    else
-        printf("End sequence\n");
-}
-
 static void printStmtAssign(StmtAssign* stmt) {
     printf("Assign\n");
     printExpr((Expr*)stmt->left);
@@ -98,7 +91,7 @@ static void printStmtPrint(StmtPrint* stmt) {
 static void printStmtIf(StmtIf* stmt) {
     printf("If\n");
     printExpr(stmt->condition);
-    printStmtSeq(stmt->thenBranch);
+    printStmt(stmt->thenBranch);
     if (stmt->elseBranch) {
         printf("Else\n");
         printStmt(stmt->elseBranch);
@@ -108,7 +101,7 @@ static void printStmtIf(StmtIf* stmt) {
 static void printStmtWhile(StmtWhile* stmt) {
     printf("While\n");
     printExpr(stmt->condition);
-    printStmtSeq(stmt->body);
+    printStmt(stmt->body);
 }
 
 static void printStmt(Stmt* stmt) {
@@ -117,22 +110,26 @@ static void printStmt(Stmt* stmt) {
         return;
     }
 
-    switch (stmt->type) {
-        case STMT_SEQUENCE : printStmtSeq((StmtSeq*)stmt);       break;
-        case STMT_ASSIGN   : printStmtAssign((StmtAssign*)stmt); break;
-        case STMT_PRINT    : printStmtPrint((StmtPrint*)stmt);   break;
-        case STMT_IF       : printStmtIf((StmtIf*)stmt);         break;
-        case STMT_WHILE    : printStmtWhile((StmtWhile*)stmt);   break;
-        default            : printf("Unknown stmt\n");           break;
+    printf("Begin body\n");
+    while (stmt != NULL) {
+        switch (stmt->type) {
+            case STMT_ASSIGN   : printStmtAssign((StmtAssign*)stmt); break;
+            case STMT_PRINT    : printStmtPrint((StmtPrint*)stmt);   break;
+            case STMT_IF       : printStmtIf((StmtIf*)stmt);         break;
+            case STMT_WHILE    : printStmtWhile((StmtWhile*)stmt);   break;
+            default            : printf("Unknown stmt\n");           break;
+        }
+        stmt = stmt->next;
     }
+    printf("End body\n");
 }
 
 static void runFile(const char* path) {
     char* source = readFile(path);
 
-    // initScanner(source);
+    initScanner(source);
 
-    // int line = -1;
+    int line = -1;
 
     // for (;;) {
     //     Token token = scanToken();
@@ -149,46 +146,56 @@ static void runFile(const char* path) {
     //     if (token.type == TOKEN_EOF) break;
     // }
 
-    // **********************************************
+    Stmt* stmts;
 
-    // Expr* expr;
+    if (parse(source, &stmts)) {
+        interpret(stmts);
+    }
 
-    // if (!parse(source, &expr))
-    //     printf("ANSWER: %d\n", interpret(expr));
-
-    // printExpr(expr);
-
-    // **********************************************
-
-    // Stmt* stmt;
-    // parse(source, &stmt);
-    // printStmt(stmt);
-
-    // **********************************************
-
-    Stmt* stmt;
-
-    if (!parse(source, &stmt))
-        interpretStmt(stmt);
-    
-    // printf("TREE\n");
-    // printStmt(stmt);
-
+    freeAST(stmts);
     free(source);
 }
 
 static void repl() {
-    char line[1024];
+    char line[4096];
+    char* head = line;
+    int currentSize = 0;
 
     for (;;) {
-        printf(">>> ");
+        printf(head == line ? ">>> " : "... ");
 
-        if (!fgets(line, sizeof(line), stdin)) {
+        if (!fgets(head, sizeof(line) - currentSize, stdin)) {
             printf("\n");
             break;
         }
 
-        // interpret(line);
+        currentSize += strlen(head);
+
+        // escape newline with backslash
+        if (currentSize > 1 && line[currentSize - 2] == '\\') {
+            line[currentSize - 2] = '\n';
+            --currentSize;
+            head = line + currentSize;
+            continue;
+        }
+
+        // check for whitespace
+        head = line;
+        while (*head != '\0' && isspace(*head))
+            ++head;
+
+        // interpret if lines are not blank
+        if (*head != '\0') {
+            Stmt* stmts;
+            if (parse(line, &stmts)) {
+                interpret(stmts);
+            }
+            freeAST(stmts);
+        }
+
+        // reset line
+        currentSize = 0;
+        head = line;
     }
 }
 

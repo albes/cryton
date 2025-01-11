@@ -197,68 +197,66 @@ static Expr* expression() {
     return disjunction();
 }
 
-StmtSeq* makeStmtSeq(Stmt* stmt) {
-    StmtSeq* seq = malloc(sizeof(StmtSeq));
-    seq->type = STMT_SEQUENCE;
-    seq->stmt = stmt;
-    seq->next = NULL;
-    return seq;
-}
-
 StmtAssign* makeStmtAssign(ExprVar* variable, Expr* expr) {
-    StmtAssign* stmt = malloc(sizeof(StmtAssign));
-    stmt->type = STMT_ASSIGN;
-    stmt->left = variable;
-    stmt->right = expr;
-    return stmt;
+    StmtAssign* assign = malloc(sizeof(StmtAssign));
+    assign->stmt.type = STMT_ASSIGN;
+    assign->stmt.next = NULL;
+    assign->left = variable;
+    assign->right = expr;
+    return assign;
 }
 
 StmtPrint* makeStmtPrint(Expr* expr) {
-    StmtPrint* stmt = malloc(sizeof(StmtPrint));
-    stmt->type = STMT_PRINT;
-    stmt->expr = expr;
-    return stmt;
+    StmtPrint* print = malloc(sizeof(StmtPrint));
+    print->stmt.type = STMT_PRINT;
+    print->stmt.next = NULL;
+    print->expr = expr;
+    return print;
 }
 
-StmtIf* makeStmtIf(Expr* condition, StmtSeq* thenBranch, Stmt* elseBranch) {
-    StmtIf* stmt = malloc(sizeof(StmtIf));
-    stmt->type = STMT_IF;
-    stmt->condition = condition;
-    stmt->thenBranch = thenBranch;
-    stmt->elseBranch = elseBranch;
-    return stmt;
+StmtIf* makeStmtIf(Expr* condition, Stmt* thenBranch, Stmt* elseBranch) {
+    StmtIf* ifStmt = malloc(sizeof(StmtIf));
+    ifStmt->stmt.type = STMT_IF;
+    ifStmt->stmt.next = NULL;
+    ifStmt->condition = condition;
+    ifStmt->thenBranch = thenBranch;
+    ifStmt->elseBranch = elseBranch;
+    return ifStmt;
 }
 
-StmtWhile* makeStmtWhile(Expr* condition, StmtSeq* body) {
-    StmtWhile* stmt = malloc(sizeof(StmtWhile));
-    stmt->type = STMT_WHILE;
-    stmt->condition = condition;
-    stmt->body = body;
-    return stmt;
+StmtWhile* makeStmtWhile(Expr* condition, Stmt* body) {
+    StmtWhile* whileStmt = malloc(sizeof(StmtWhile));
+    whileStmt->stmt.type = STMT_WHILE;
+    whileStmt->stmt.next = NULL;
+    whileStmt->condition = condition;
+    whileStmt->body = body;
+    return whileStmt;
 }
 
 static Stmt* statement();
 
-StmtSeq* block() {
+Stmt* block() {
     consume(TOKEN_NEWLINE, "Expect NEWLINE before block.");
     consume(TOKEN_INDENT, "Expect INDENT before block.");
-    StmtSeq* seq = makeStmtSeq(statement());
-    StmtSeq* tail = seq;
+    Stmt* block = statement();
+    Stmt* tail = block;
 
     while (parser.current.type != TOKEN_EOF &&
            parser.current.type != TOKEN_DEDENT) {
-        tail->next = makeStmtSeq(statement());
-        tail = tail->next;
+        tail->next = statement();
+
+        if (tail->next != NULL)
+            tail = tail->next;
     }
 
     consume(TOKEN_DEDENT, "Expect DEDENT after block.");
-    return seq;
+    return block;
 }
 
 Stmt* whileStmt() {
     Expr* condition = expression();
     consume(TOKEN_COLON, "Expect ':' after while.");
-    StmtSeq* body = block();
+    Stmt* body = block();
 
     return (Stmt*)makeStmtWhile(condition, body);
 }
@@ -266,14 +264,14 @@ Stmt* whileStmt() {
 Stmt* ifStmt() {
     Expr* condition = expression();
     consume(TOKEN_COLON, "Expect ':' after condition.");
-    StmtSeq* thenBranch = block();
+    Stmt* thenBranch = block();
     Stmt* elseBranch = NULL;
 
     if (match(TOKEN_ELIF)) {
         elseBranch = ifStmt();
     } else if (match(TOKEN_ELSE)) {
         consume(TOKEN_COLON, "Expect ':' after else.");
-        elseBranch = (Stmt*)block();
+        elseBranch = block();
     }
 
     return (Stmt*)makeStmtIf(condition, thenBranch, elseBranch);
@@ -304,12 +302,10 @@ static void synchronize() {
             case TOKEN_IF:
             case TOKEN_WHILE:
             case TOKEN_PRINT:
-            case TOKEN_IDENTIFIER:
+            // case TOKEN_IDENTIFIER: // produces too many false errors
                 return;
         }
 
-        // TODO: remove this line
-        fprintf(stderr, "SKIPPING '%.*s'\n", parser.current.length, parser.current.start);
         advance();
 
         if (parser.previous.type == TOKEN_NEWLINE)
@@ -327,22 +323,88 @@ static Stmt* statement() {
     if (match(TOKEN_WHILE))      return  whileStmt();
 
     errorAtCurrent("Expect statement.");
+    synchronize();
     return NULL;
 }
 
-bool parse(const char* source, Stmt** stmt) {
+bool parse(const char* source, Stmt** stmts) {
     initScanner(source);
     parser.hadError = false;
     parser.panicMode = false;
     advance();
 
-    StmtSeq* tail = makeStmtSeq(statement());
-    *stmt = (Stmt*)tail;
+    *stmts = NULL;
 
     while (parser.current.type != TOKEN_EOF) {
-        tail->next = makeStmtSeq(statement());
-        tail = tail->next;
+        *stmts = statement();
+
+        if (*stmts != NULL)
+            stmts = &((*stmts)->next); // sorry
     }
 
-    return parser.hadError;
+    return !parser.hadError;
+}
+
+static void freeExpr(Expr* expr);
+
+static void freeExprBinary(ExprBinary* expr) {
+    freeExpr(expr->left);
+    freeExpr(expr->right);
+    free(expr);
+}
+
+static void freeExprUnary(ExprUnary* expr) {
+    freeExpr(expr->right);
+    free(expr);
+}
+
+static void freeExpr(Expr* expr) {
+    if (expr == NULL)
+        return;
+    
+    switch (expr->type) {
+        case EXPR_BINARY : freeExprBinary((ExprBinary*)expr); break;
+        case EXPR_UNARY  : freeExprUnary((ExprUnary*)expr);   break;
+        case EXPR_NUMBER : free(expr);                        break;
+        case EXPR_VAR    : free(expr);                        break;
+    }
+}
+
+static void freeStmtAssign(StmtAssign* stmt) {
+    freeExpr((Expr*)stmt->left);
+    freeExpr(stmt->right);
+    free(stmt);
+}
+
+static void freeStmtPrint(StmtPrint* stmt) {
+    freeExpr(stmt->expr);
+    free(stmt);
+}
+
+static void freeStmtIf(StmtIf* stmt) {
+    freeExpr(stmt->condition);
+    freeAST(stmt->thenBranch);
+    freeAST(stmt->elseBranch);
+    free(stmt);
+}
+static void freeStmtWhile(StmtWhile* stmt) {
+    freeExpr(stmt->condition);
+    freeAST(stmt->body);
+    free(stmt);
+}
+
+void freeAST(Stmt* stmts) {
+    if (stmts == NULL)
+        return;
+
+    while (stmts != NULL) {
+        Stmt* next = stmts->next;
+        switch (stmts->type) {
+            case STMT_ASSIGN : freeStmtAssign((StmtAssign*)stmts); break;
+            case STMT_PRINT  : freeStmtPrint((StmtPrint*)stmts);   break;
+            case STMT_IF     : freeStmtIf((StmtIf*)stmts);         break;
+            case STMT_WHILE  : freeStmtWhile((StmtWhile*)stmts);   break;
+        }
+        stmts = next;
+    }
 }

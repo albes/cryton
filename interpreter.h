@@ -12,7 +12,8 @@ extern Interp interp;
 
 void initInterp();
 void freeInterp();
-int interpret(Expr* expr);
+int interpretExpr(Expr* expr);
 void interpretStmt(Stmt* stmt);
+void interpret(Stmt* stmts);
 
 #endif

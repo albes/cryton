@@ -16,14 +16,14 @@ void freeInterp() {
 
 int interpretBinary(ExprBinary* expr) {
     switch (expr->operator) {
-        case TOKEN_PLUS        : return interpret(expr->left) +  interpret(expr->right);
-        case TOKEN_MINUS       : return interpret(expr->left) -  interpret(expr->right);
-        case TOKEN_LESS        : return interpret(expr->left) <  interpret(expr->right);
-        case TOKEN_GREATER     : return interpret(expr->left) >  interpret(expr->right);
-        case TOKEN_EQUAL_EQUAL : return interpret(expr->left) == interpret(expr->right);
-        case TOKEN_BANG_EQUAL  : return interpret(expr->left) != interpret(expr->right);
-        case TOKEN_AND         : return interpret(expr->left) && interpret(expr->right);
-        case TOKEN_OR          : return interpret(expr->left) || interpret(expr->right);
+        case TOKEN_PLUS        : return interpretExpr(expr->left) +  interpretExpr(expr->right);
+        case TOKEN_MINUS       : return interpretExpr(expr->left) -  interpretExpr(expr->right);
+        case TOKEN_LESS        : return interpretExpr(expr->left) <  interpretExpr(expr->right);
+        case TOKEN_GREATER     : return interpretExpr(expr->left) >  interpretExpr(expr->right);
+        case TOKEN_EQUAL_EQUAL : return interpretExpr(expr->left) == interpretExpr(expr->right);
+        case TOKEN_BANG_EQUAL  : return interpretExpr(expr->left) != interpretExpr(expr->right);
+        case TOKEN_AND         : return interpretExpr(expr->left) && interpretExpr(expr->right);
+        case TOKEN_OR          : return interpretExpr(expr->left) || interpretExpr(expr->right);
     }
 
     return 0;
@@ -31,8 +31,8 @@ int interpretBinary(ExprBinary* expr) {
 
 int interpretUnary(ExprUnary* expr) {
     switch (expr->operator) {
-        case TOKEN_MINUS : return -interpret(expr->right);
-        case TOKEN_NOT   : return !interpret(expr->right);
+        case TOKEN_MINUS : return -interpretExpr(expr->right);
+        case TOKEN_NOT   : return !interpretExpr(expr->right);
     }
 
     return 0;
@@ -49,7 +49,7 @@ int interpretVar(ExprVar* expr) {
     return value.number;
 }
 
-int interpret(Expr* expr) {
+int interpretExpr(Expr* expr) {
     switch (expr->type) {
         case EXPR_BINARY : return interpretBinary((ExprBinary*)expr);
         case EXPR_UNARY  : return interpretUnary((ExprUnary*)expr);
@@ -62,35 +62,28 @@ int interpret(Expr* expr) {
 
 void interpretStmt(Stmt* stmt);
 
-void interpretSeq(StmtSeq* seq) {
-    while (seq != NULL) {
-        interpretStmt(seq->stmt);
-        seq = seq->next;
-    }
-}
-
 void interpretAssign(StmtAssign* stmt) {
     ExprVar* exprVar = (ExprVar*)stmt->left;
     ObjString* varName = exprVar->name;
-    int value = interpret(stmt->right);
+    int value = interpretExpr(stmt->right);
     tableSet(&interp.strings, varName, (Value){ VALUE_NUMBER, value });
 }
 
 void interpretPrint(StmtPrint* stmt) {
-    printf("%d\n", interpret(stmt->expr));
+    printf("%d\n", interpretExpr(stmt->expr));
 }
 
 void interpretIf(StmtIf* stmt) {
-    if (interpret(stmt->condition)) {
-        interpretSeq(stmt->thenBranch);
+    if (interpretExpr(stmt->condition)) {
+        interpret(stmt->thenBranch);
     } else {
-        interpretStmt(stmt->elseBranch);
+        interpret(stmt->elseBranch);
     }
 }
 
 void interpretWhile(StmtWhile* stmt) {
-    while (interpret(stmt->condition)) {
-        interpretSeq(stmt->body);
+    while (interpretExpr(stmt->condition)) {
+        interpret(stmt->body);
     }
 }
 
@@ -98,10 +91,16 @@ void interpretStmt(Stmt* stmt) {
     if (stmt == NULL) return;
 
     switch (stmt->type) {
-        case STMT_SEQUENCE: interpretSeq((StmtSeq*)stmt); break;
         case STMT_ASSIGN: interpretAssign((StmtAssign*)stmt); break;
         case STMT_PRINT: interpretPrint((StmtPrint*)stmt); break;
         case STMT_IF: interpretIf((StmtIf*)stmt); break;
         case STMT_WHILE: interpretWhile((StmtWhile*)stmt); break;
+    }
+}
+
+void interpret(Stmt* stmts) {
+    while (stmts != NULL) {
+        interpretStmt(stmts);
+        stmts = stmts->next;
     }
 }
