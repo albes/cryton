@@ -205,8 +205,6 @@ static void repl() {
         head = line;
     }
 #else
-    FILE* file = fopen("log.txt", "ab");
-
     char* line = NULL;  // Current input line
     int currentSize = 0;  // Total size of the input being built
 
@@ -255,12 +253,6 @@ static void repl() {
 
             if (*head != '\0') {  // If the line is not empty
                 Stmt* stmts;
-                fwrite(line, sizeof(char), currentSize, file);  // Write input to file
-
-                int length = strlen(line);
-                char lengthStr[50];
-                sprintf(lengthStr, "Length: %d\n", length);
-                fwrite(lengthStr, sizeof(char), strlen(lengthStr), file);
 
                 if (parse(line, &stmts)) {
                     interpret(stmts);
@@ -274,8 +266,6 @@ static void repl() {
             line = NULL;
         }
     }
-
-    fclose(file);
 #endif
 }
 

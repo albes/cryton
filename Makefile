@@ -5,7 +5,7 @@ cryton: $(BUILD_DIR)/cryton
 
 $(BUILD_DIR)/cryton: *.c *.h
 	mkdir -p $(BUILD_DIR)
-	$(CC) $(wildcard *.c) -o $@
+	$(CC) $(wildcard *.c) -o $@ -lreadline
 
 ccomp: $(CCOMP_DIR)/cryton
 
