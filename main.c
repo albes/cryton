@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 #include "common.h"
 #include "object.h"
@@ -156,73 +158,54 @@ static void runFile(const char* path) {
     free(source);
 }
 
-static void remove_partial_utf8_sequences(char* line, int* currentSize) {
-    int writeIndex = 0;
-    for (int readIndex = 0; readIndex < *currentSize;) {
-        unsigned char c = (unsigned char)line[readIndex];
-
-        if ((c & 0xE0) == 0xC0) {  // 2-byte sequence (110xxxxx)
-            // Remove 1 byte (the leading byte)
-            readIndex += 1;
-        } else if ((c & 0xF0) == 0xE0) {  // 3-byte sequence (1110xxxx)
-            // Remove 2 bytes (the leading byte and 1 continuation byte)
-            readIndex += 2;
-        } else if ((c & 0xF8) == 0xF0) {  // 4-byte sequence (11110xxx)
-            // Remove 3 bytes (the leading byte and 2 continuation bytes)
-            readIndex += 3;
-        } else {
-            // ASCII character (<= 127), keep it
-            line[writeIndex++] = line[readIndex++];
-        }
-    }
-    *currentSize = writeIndex;
-    line[writeIndex] = '\0';  // Null-terminate the cleaned line
-}
-
 static void repl() {
-    char line[4096];
-    char* head = line;
-    int currentSize = 0;
+    FILE* file = fopen("log.txt", "ab");
+
+    char* line;
+    int currentSize;
 
     for (;;) {
-        printf(head == line ? ">>> " : "... ");
-
-        if (!fgets(head, sizeof(line) - currentSize, stdin)) {
+        line = readline(">>> ");  // Read input using readline
+        if (!line) {  // Handle end-of-input (CTRL+D)
             printf("\n");
             break;
         }
 
-        currentSize += strlen(head);
-
-        // Escape newline with backslash
-        if (currentSize > 1 && line[currentSize - 2] == '\\') {
-            line[currentSize - 2] = '\n';
-            --currentSize;
-            head = line + currentSize;
-            continue;
+        // Add newline at the end of the input to mimic fgets() behavior
+        currentSize = strlen(line);
+        if (currentSize < 4095) {
+            line = realloc(line, currentSize + 2);  // Resize memory to hold the newline
+            line[currentSize] = '\n';  // Add newline
+            line[currentSize + 1] = '\0';  // Null-terminate
+            currentSize++;
         }
 
-        // Check for whitespace
-        head = line;
+        add_history(line);  // Add input to history
+
+        // Check for whitespace-only input
+        char* head = line;
         while (*head != '\0' && isspace((unsigned char)*head))
             ++head;
 
-        // Remove multi-byte UTF-8 sequences
-        remove_partial_utf8_sequences(line, &currentSize);
-
-        // Interpret if lines are not blank
         if (*head != '\0') {
             Stmt* stmts;
+            fwrite(line, sizeof(char), currentSize, file);
+
+            int length = strlen(line);  // Get the length of the line
+            char lengthStr[50];
+            sprintf(lengthStr, "Length: %d\n", length);  // Convert to string with a label
+            fwrite(lengthStr, sizeof(char), strlen(lengthStr), file);
+
             if (parse(line, &stmts)) {
                 interpret(stmts);
             }
             freeAST(stmts);
         }
 
-        // Reset line
-        currentSize = 0;
-        head = line;
+        free(line);  // Free the memory allocated by readline
     }
+    
+    fclose(file);
 }
 
 int main(int argc, char* argv[]) {
