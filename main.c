@@ -2,8 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <readline/readline.h>
-#include <readline/history.h>
+#ifdef _WIN32  // If compiling on Windows
+    #define USE_FGETS  // Use fgets for input
+#else  // If compiling on Linux/Mac
+    #include <readline/readline.h>
+    #include <readline/history.h>
+#endif
 
 #include "common.h"
 #include "object.h"
@@ -159,53 +163,120 @@ static void runFile(const char* path) {
 }
 
 static void repl() {
-    FILE* file = fopen("log.txt", "ab");
-
-    char* line;
-    int currentSize;
+#ifdef USE_FGETS
+    char line[4096];
+    char* head = line;
+    int currentSize = 0;
 
     for (;;) {
-        line = readline(">>> ");  // Read input using readline
-        if (!line) {  // Handle end-of-input (CTRL+D)
+        printf(head == line ? ">>> " : "... ");
+
+        if (!fgets(head, sizeof(line) - currentSize, stdin)) {
             printf("\n");
             break;
         }
 
-        // Add newline at the end of the input to mimic fgets() behavior
-        currentSize = strlen(line);
-        if (currentSize < 4095) {
-            line = realloc(line, currentSize + 2);  // Resize memory to hold the newline
-            line[currentSize] = '\n';  // Add newline
-            line[currentSize + 1] = '\0';  // Null-terminate
-            currentSize++;
+        currentSize += strlen(head);
+
+        // Escape newline with backslash
+        if (currentSize > 1 && line[currentSize - 2] == '\\') {
+            line[currentSize - 2] = '\n';
+            --currentSize;
+            head = line + currentSize;
+            continue;
         }
 
-        add_history(line);  // Add input to history
-
-        // Check for whitespace-only input
-        char* head = line;
+        // Check for whitespace
+        head = line;
         while (*head != '\0' && isspace((unsigned char)*head))
             ++head;
 
+        // Interpret if lines are not blank
         if (*head != '\0') {
             Stmt* stmts;
-            fwrite(line, sizeof(char), currentSize, file);
-
-            int length = strlen(line);  // Get the length of the line
-            char lengthStr[50];
-            sprintf(lengthStr, "Length: %d\n", length);  // Convert to string with a label
-            fwrite(lengthStr, sizeof(char), strlen(lengthStr), file);
-
             if (parse(line, &stmts)) {
                 interpret(stmts);
             }
             freeAST(stmts);
         }
 
-        free(line);  // Free the memory allocated by readline
+        // Reset line
+        currentSize = 0;
+        head = line;
     }
-    
+#else
+    FILE* file = fopen("log.txt", "ab");
+
+    char* line = NULL;  // Current input line
+    int currentSize = 0;  // Total size of the input being built
+
+    for (;;) {
+        // Show prompt
+        char* input = readline(currentSize == 0 ? ">>> " : "... ");
+        if (!input) {  // Handle CTRL+D (EOF)
+            printf("\n");
+            break;
+        }
+
+        int inputLength = strlen(input);
+
+        // Trim trailing spaces after the backslash
+        int i = inputLength - 1;
+        while (i >= 0 && isspace((unsigned char)input[i])) i--;
+
+        // Check if the last non-whitespace character is a backslash
+        int isContinuation = (i >= 0 && input[i] == '\\');
+
+        if (isContinuation) {  // If it's a continuation line
+            input[i] = '\n';  // Replace the backslash with a newline
+            inputLength = i + 1;  // Update length
+        } else {
+            add_history(input);  // Add completed input to history
+        }
+
+        // Allocate space to append the new input
+        line = realloc(line, currentSize + inputLength + 2);
+        memcpy(line + currentSize, input, inputLength);  // Append input to the line
+        currentSize += inputLength;
+
+        // Ensure there's a final newline for the parser
+        if (line[currentSize - 1] != '\n') {
+            line[currentSize] = '\n';  // Add newline
+            currentSize++;
+        }
+
+        line[currentSize] = '\0';  // Null-terminate
+        free(input);  // Free temporary input
+
+        if (!isContinuation) {  // If it's not a continuation, interpret the input
+            char* head = line;
+            while (*head != '\0' && isspace((unsigned char)*head))
+                ++head;
+
+            if (*head != '\0') {  // If the line is not empty
+                Stmt* stmts;
+                fwrite(line, sizeof(char), currentSize, file);  // Write input to file
+
+                int length = strlen(line);
+                char lengthStr[50];
+                sprintf(lengthStr, "Length: %d\n", length);
+                fwrite(lengthStr, sizeof(char), strlen(lengthStr), file);
+
+                if (parse(line, &stmts)) {
+                    interpret(stmts);
+                }
+                freeAST(stmts);
+            }
+
+            // Reset after interpreting
+            currentSize = 0;
+            free(line);
+            line = NULL;
+        }
+    }
+
     fclose(file);
+#endif
 }
 
 int main(int argc, char* argv[]) {
