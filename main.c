@@ -156,6 +156,29 @@ static void runFile(const char* path) {
     free(source);
 }
 
+static void remove_partial_utf8_sequences(char* line, int* currentSize) {
+    int writeIndex = 0;
+    for (int readIndex = 0; readIndex < *currentSize;) {
+        unsigned char c = (unsigned char)line[readIndex];
+
+        if ((c & 0xE0) == 0xC0) {  // 2-byte sequence (110xxxxx)
+            // Remove 1 byte (the leading byte)
+            readIndex += 1;
+        } else if ((c & 0xF0) == 0xE0) {  // 3-byte sequence (1110xxxx)
+            // Remove 2 bytes (the leading byte and 1 continuation byte)
+            readIndex += 2;
+        } else if ((c & 0xF8) == 0xF0) {  // 4-byte sequence (11110xxx)
+            // Remove 3 bytes (the leading byte and 2 continuation bytes)
+            readIndex += 3;
+        } else {
+            // ASCII character (<= 127), keep it
+            line[writeIndex++] = line[readIndex++];
+        }
+    }
+    *currentSize = writeIndex;
+    line[writeIndex] = '\0';  // Null-terminate the cleaned line
+}
+
 static void repl() {
     char line[4096];
     char* head = line;
@@ -171,17 +194,6 @@ static void repl() {
 
         currentSize += strlen(head);
 
-        // Remove characters with ASCII > 127
-        int writeIndex = 0;
-        for (int readIndex = 0; readIndex < currentSize; ++readIndex) {
-            unsigned char c = (unsigned char)line[readIndex];
-            if (c <= 127) {
-                line[writeIndex++] = line[readIndex];  // Keep ASCII characters
-            }
-        }
-        currentSize = writeIndex;  // Update current size after removal
-        line[writeIndex] = '\0';   // Null-terminate the string
-
         // Escape newline with backslash
         if (currentSize > 1 && line[currentSize - 2] == '\\') {
             line[currentSize - 2] = '\n';
@@ -194,6 +206,9 @@ static void repl() {
         head = line;
         while (*head != '\0' && isspace((unsigned char)*head))
             ++head;
+
+        // Remove multi-byte UTF-8 sequences
+        remove_partial_utf8_sequences(line, &currentSize);
 
         // Interpret if lines are not blank
         if (*head != '\0') {
