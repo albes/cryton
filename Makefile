@@ -5,13 +5,13 @@ cryton: $(BUILD_DIR)/cryton
 
 $(BUILD_DIR)/cryton: *.c *.h
 	mkdir -p $(BUILD_DIR)
-	$(CC) $(wildcard *.c) -o $@
+	$(CC) $(wildcard *.c) -o $@ -lreadline
 
 ccomp: $(CCOMP_DIR)/cryton
 
 $(CCOMP_DIR)/cryton: *.c *.h
 	mkdir -p $(CCOMP_DIR)
-	ccomp -fstruct-passing $(wildcard *.c) -o $@
+	ccomp -fstruct-passing $(wildcard *.c) -o $@ -lreadline
 
 clean:
 	rm -rf $(BUILD_DIR) $(CCOMP_DIR)

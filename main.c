@@ -2,6 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#ifdef _WIN32  // If compiling on Windows
+    #define USE_FGETS  // Use fgets for input
+#else  // If compiling on Linux/Mac
+    #include <readline/readline.h>
+    #include <readline/history.h>
+#endif
 
 #include "common.h"
 #include "object.h"
@@ -157,6 +163,7 @@ static void runFile(const char* path) {
 }
 
 static void repl() {
+#ifdef USE_FGETS
     char line[4096];
     char* head = line;
     int currentSize = 0;
@@ -170,17 +177,6 @@ static void repl() {
         }
 
         currentSize += strlen(head);
-
-        // Remove characters with ASCII > 127
-        int writeIndex = 0;
-        for (int readIndex = 0; readIndex < currentSize; ++readIndex) {
-            unsigned char c = (unsigned char)line[readIndex];
-            if (c <= 127) {
-                line[writeIndex++] = line[readIndex];  // Keep ASCII characters
-            }
-        }
-        currentSize = writeIndex;  // Update current size after removal
-        line[writeIndex] = '\0';   // Null-terminate the string
 
         // Escape newline with backslash
         if (currentSize > 1 && line[currentSize - 2] == '\\') {
@@ -208,6 +204,69 @@ static void repl() {
         currentSize = 0;
         head = line;
     }
+#else
+    char* line = NULL;  // Current input line
+    int currentSize = 0;  // Total size of the input being built
+
+    for (;;) {
+        // Show prompt
+        char* input = readline(currentSize == 0 ? ">>> " : "... ");
+        if (!input) {  // Handle CTRL+D (EOF)
+            printf("\n");
+            break;
+        }
+
+        int inputLength = strlen(input);
+
+        // Trim trailing spaces after the backslash
+        int i = inputLength - 1;
+        while (i >= 0 && isspace((unsigned char)input[i])) i--;
+
+        // Check if the last non-whitespace character is a backslash
+        int isContinuation = (i >= 0 && input[i] == '\\');
+
+        if (isContinuation) {  // If it's a continuation line
+            input[i] = '\n';  // Replace the backslash with a newline
+            inputLength = i + 1;  // Update length
+        } else {
+            add_history(input);  // Add completed input to history
+        }
+
+        // Allocate space to append the new input
+        line = realloc(line, currentSize + inputLength + 2);
+        memcpy(line + currentSize, input, inputLength);  // Append input to the line
+        currentSize += inputLength;
+
+        // Ensure there's a final newline for the parser
+        if (line[currentSize - 1] != '\n') {
+            line[currentSize] = '\n';  // Add newline
+            currentSize++;
+        }
+
+        line[currentSize] = '\0';  // Null-terminate
+        free(input);  // Free temporary input
+
+        if (!isContinuation) {  // If it's not a continuation, interpret the input
+            char* head = line;
+            while (*head != '\0' && isspace((unsigned char)*head))
+                ++head;
+
+            if (*head != '\0') {  // If the line is not empty
+                Stmt* stmts;
+
+                if (parse(line, &stmts)) {
+                    interpret(stmts);
+                }
+                freeAST(stmts);
+            }
+
+            // Reset after interpreting
+            currentSize = 0;
+            free(line);
+            line = NULL;
+        }
+    }
+#endif
 }
 
 int main(int argc, char* argv[]) {
