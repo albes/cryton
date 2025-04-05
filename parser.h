@@ -2,6 +2,7 @@
 #define cryton_parser_h
 
 #include "value.h"
+#include "bigint.h"
 #include "scanner.h"
 
 typedef enum {
@@ -29,7 +30,7 @@ typedef struct {
 
 typedef struct {
     ExprType type;
-    int value;
+    BigInt value;
 } ExprNumber;
 
 typedef struct {

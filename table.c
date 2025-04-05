@@ -15,7 +15,7 @@ void initTable(Table* table) {
     table->entries = NULL;
 }
 
-// free table and all contained strings
+// Free table and all contained strings
 void freeTable(Table* table) {
     if (table == NULL || table->entries == NULL)
         return;
@@ -56,7 +56,7 @@ static void adjustCapacity(Table* table, int capacity) {
     for (int i = 0; i < capacity; ++i) {
         entries[i].key = NULL;
         entries[i].value.type = VALUE_NULL;
-        entries[i].value.number = 0;
+        bigint_init(&entries[i].value.number, 0); 
     }
 
     table->count = 0;
@@ -110,7 +110,7 @@ bool tableDelete(Table* table, ObjString* key) {
     // Tombstone
     entry->key = NULL;
     entry->value.type = VALUE_NUMBER;
-    entry->value.number = 1;
+    bigint_init(&entry->value.number, 1); 
     return true;
 }
 

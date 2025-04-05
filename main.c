@@ -9,6 +9,7 @@
     #include <readline/history.h>
 #endif
 
+#include "bigint.h"
 #include "common.h"
 #include "object.h"
 #include "scanner.h"
@@ -71,7 +72,8 @@ static void printExpr(Expr* expr) {
     } else if (expr->type == EXPR_NUMBER) {
         ExprNumber* e = (ExprNumber*)expr;
 
-        printf("Number %d\n", e->value);
+        printf("Number ");
+        bigint_print(&e->value);
     } else if (expr->type == EXPR_VAR) {
         ExprVar* e = (ExprVar*)expr;
 
@@ -156,6 +158,7 @@ static void runFile(const char* path) {
 
     if (parse(source, &stmts)) {
         interpret(stmts);
+        // printStmt(stmts);
     }
 
     freeAST(stmts);

@@ -14,42 +14,65 @@ void freeInterp() {
     freeTable(&interp.strings);
 }
 
-int interpretBinary(ExprBinary* expr) {
+BigInt interpretBinary(ExprBinary* expr) {
+    BigInt result = bigint_from_int(0);
+    BigInt left = interpretExpr(expr->left);
+    BigInt right = interpretExpr(expr->right);
+    BigInt zero = bigint_from_int(0);
+    
     switch (expr->operator) {
-        case TOKEN_PLUS        : return interpretExpr(expr->left) +  interpretExpr(expr->right);
-        case TOKEN_MINUS       : return interpretExpr(expr->left) -  interpretExpr(expr->right);
-        case TOKEN_LESS        : return interpretExpr(expr->left) <  interpretExpr(expr->right);
-        case TOKEN_GREATER     : return interpretExpr(expr->left) >  interpretExpr(expr->right);
-        case TOKEN_EQUAL_EQUAL : return interpretExpr(expr->left) == interpretExpr(expr->right);
-        case TOKEN_BANG_EQUAL  : return interpretExpr(expr->left) != interpretExpr(expr->right);
-        case TOKEN_AND         : return interpretExpr(expr->left) && interpretExpr(expr->right);
-        case TOKEN_OR          : return interpretExpr(expr->left) || interpretExpr(expr->right);
+        case TOKEN_PLUS        : bigint_add(&result, &left, &right); break;// interpretExpr(expr->left) +  interpretExpr(expr->right);
+        case TOKEN_MINUS       : bigint_sub(&result, &left, &right); break;// interpretExpr(expr->left) -  interpretExpr(expr->right);
+        case TOKEN_LESS        : bigint_init(&result, bigint_abs_compare(&left, &right) < 0); break;// interpretExpr(expr->left) <  interpretExpr(expr->right);
+        case TOKEN_GREATER     : bigint_init(&result, bigint_abs_compare(&left, &right) > 0); break;//interpretExpr(expr->left) >  interpretExpr(expr->right);
+        case TOKEN_EQUAL_EQUAL : bigint_init(&result, bigint_abs_compare(&left, &right) == 0); break;
+        case TOKEN_BANG_EQUAL  : bigint_init(&result, bigint_abs_compare(&left, &right) != 0); break;
+        case TOKEN_AND         : bigint_init(&result, bigint_abs_compare(&left, &zero) != 0
+                                                   && bigint_abs_compare(&right, &zero) != 0);
+                                 break;
+        case TOKEN_OR          : bigint_init(&result, bigint_abs_compare(&left, &zero) != 0
+                                                   || bigint_abs_compare(&right, &zero) != 0);
+                                 break;
     }
 
-    return 0;
+    return result;
 }
 
-int interpretUnary(ExprUnary* expr) {
+BigInt interpretUnary(ExprUnary* expr) {
+    BigInt result = bigint_from_int(0);
+    BigInt zero = bigint_from_int(0);
+
+    BigInt val = interpretExpr(expr->right);
+
     switch (expr->operator) {
-        case TOKEN_MINUS : return -interpretExpr(expr->right);
-        case TOKEN_NOT   : return !interpretExpr(expr->right);
+        case TOKEN_MINUS : 
+            val.sign = -val.sign;
+            return val;
+        case TOKEN_NOT   :
+            if (bigint_abs_compare(&val, &zero) == 0){
+                bigint_init(&val, 1);
+            }
+            else{
+                bigint_init(&val, 0);
+            }
+            return val;
     }
 
-    return 0;
+    return result;
 }
 
-int interpretNumber(ExprNumber* expr) {
+BigInt interpretNumber(ExprNumber* expr) {
     return expr->value;
 }
 
 // TODO: report an error if variable is uninitialized
-int interpretVar(ExprVar* expr) {
-    Value value = { VALUE_NUMBER, 0 };
+BigInt interpretVar(ExprVar* expr) {
+    Value value = { VALUE_NUMBER, bigint_from_int(0) };
     tableGet(&interp.strings, expr->name, &value);
     return value.number;
 }
 
-int interpretExpr(Expr* expr) {
+BigInt interpretExpr(Expr* expr) {
     switch (expr->type) {
         case EXPR_BINARY : return interpretBinary((ExprBinary*)expr);
         case EXPR_UNARY  : return interpretUnary((ExprUnary*)expr);
@@ -57,7 +80,7 @@ int interpretExpr(Expr* expr) {
         case EXPR_VAR    : return interpretVar((ExprVar*)expr);
     }
 
-    return 0;
+    return bigint_from_int(0);
 }
 
 void interpretStmt(Stmt* stmt);
@@ -65,16 +88,20 @@ void interpretStmt(Stmt* stmt);
 void interpretAssign(StmtAssign* stmt) {
     ExprVar* exprVar = (ExprVar*)stmt->left;
     ObjString* varName = exprVar->name;
-    int value = interpretExpr(stmt->right);
-    tableSet(&interp.strings, varName, (Value){ VALUE_NUMBER, value });
+    BigInt number = interpretExpr(stmt->right);
+    tableSet(&interp.strings, varName, (Value){ VALUE_NUMBER, number });
 }
 
 void interpretPrint(StmtPrint* stmt) {
-    printf("%d\n", interpretExpr(stmt->expr));
+    BigInt num = interpretExpr(stmt->expr);
+    bigint_print(&num);
 }
 
 void interpretIf(StmtIf* stmt) {
-    if (interpretExpr(stmt->condition)) {
+    BigInt val = interpretExpr(stmt->condition);
+    BigInt zero = bigint_from_int(0);
+
+    if (bigint_abs_compare(&val, &zero) != 0) {
         interpret(stmt->thenBranch);
     } else {
         interpret(stmt->elseBranch);
@@ -82,8 +109,12 @@ void interpretIf(StmtIf* stmt) {
 }
 
 void interpretWhile(StmtWhile* stmt) {
-    while (interpretExpr(stmt->condition)) {
+    BigInt val = interpretExpr(stmt->condition);
+    BigInt zero = bigint_from_int(0);
+
+    while (bigint_abs_compare(&val, &zero) != 0) {
         interpret(stmt->body);
+        val = interpretExpr(stmt->condition);
     }
 }
 
