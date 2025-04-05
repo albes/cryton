@@ -1,6 +1,8 @@
 #ifndef cryton_value_h
 #define cryton_value_h
 
+#include "bigint.h"  // Assuming a bigint library is available
+
 typedef struct ObjString ObjString;
 
 typedef enum {
@@ -9,7 +11,7 @@ typedef enum {
 
 typedef struct {
     ValueType type;
-    int number;
+    BigInt number;
 } Value;
 
 #endif

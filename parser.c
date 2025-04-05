@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-
+#include "bigint.h"
 #include "common.h"
 #include "object.h"
 #include "parser.h"
@@ -77,7 +77,7 @@ static ExprUnary* makeExprUnary(TokenType operator, Expr* right) {
     return expr;
 }
 
-static ExprNumber* makeExprNumber(int value) {
+static ExprNumber* makeExprNumber(BigInt value) {
     ExprNumber* expr = malloc(sizeof(ExprNumber));
     expr->type = EXPR_NUMBER;
     expr->value = value;
@@ -100,8 +100,11 @@ static bool match(TokenType type) {
 static Expr* expression();
 
 static Expr* atom() {
-    if (match(TOKEN_NUMBER))
-        return (Expr*)makeExprNumber(atoi(parser.previous.start));
+    if (match(TOKEN_NUMBER)){
+        BigInt a = bigint_from_int(69);
+        bigint_init(&a, atoi(parser.previous.start));
+        return (Expr*)makeExprNumber(a);
+    }
     if (match(TOKEN_IDENTIFIER))
         return (Expr*)makeExprVar(parser.previous.start, parser.previous.length);
 

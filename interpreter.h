@@ -1,6 +1,7 @@
 #ifndef cryton_interpreter_h
 #define cryton_interpreter_h
 
+#include "bigint.h"
 #include "table.h"
 #include "parser.h"
 
@@ -12,7 +13,7 @@ extern Interp interp;
 
 void initInterp();
 void freeInterp();
-int interpretExpr(Expr* expr);
+BigInt interpretExpr(Expr* expr);
 void interpretStmt(Stmt* stmt);
 void interpret(Stmt* stmts);
 

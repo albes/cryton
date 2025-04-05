@@ -10,7 +10,11 @@ static ObjString* allocateString(char* chars, int length, uint32_t hash) {
     string->chars = chars;
     string->length = length;
     string->hash = hash;
-    tableSet(&interp.strings, string, (Value){ VALUE_NULL, 0 });
+    
+    Value val;
+    val.type = VALUE_NULL;
+    bigint_init(&val.number, 0);
+    tableSet(&interp.strings, string, val);
     return string;
 }
 
