@@ -18,7 +18,7 @@ typedef struct {
 
 void bigint_init(BigInt* num, int value);
 BigInt bigint_from_int(int value);
-BigInt bigint_from_str(const char* str);
+BigInt bigint_from_str(const char* str, int len);
 void bigint_add(BigInt* result, BigInt* a, BigInt* b);
 void bigint_sub(BigInt* result, BigInt* a, BigInt* b);
 //returns 1 if a > b, -1 if a < b, 0 if equal

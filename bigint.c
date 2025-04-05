@@ -108,9 +108,8 @@ BigInt bigint_from_int(int value) {
     return num;
 }
 
-BigInt bigint_from_str(const char* str) {
+BigInt bigint_from_str(const char* str, int len) {
     BigInt num;
-    int len = strlen(str);
     int start = 0;
 
     // Handle sign
@@ -156,11 +155,17 @@ void bigint_print(BigInt* num) {
 
 // Compare absolute values of two BigInts (returns 1 if a > b, -1 if a < b, 0 if equal)
 int bigint_abs_compare(BigInt* a, BigInt* b) {
-    if (a->length > b->length) return 1;
-    if (a->length < b->length) return -1;
+    // First check signs
+    if (a->sign > b->sign) return 1;
+    if (a->sign < b->sign) return -1;
+
+    // If both are same sign, compare absolute values
+    int sign = a->sign;
+    if (a->length > b->length) return 1 * sign;
+    if (a->length < b->length) return -1 * sign;
     for (int i = a->length - 1; i >= 0; --i) {
-        if (a->digits[i] > b->digits[i]) return 1;
-        if (a->digits[i] < b->digits[i]) return -1;
+        if (a->digits[i] > b->digits[i]) return 1 * sign;
+        if (a->digits[i] < b->digits[i]) return -1 * sign;
     }
     return 0;
 }

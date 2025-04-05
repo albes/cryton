@@ -100,9 +100,8 @@ static bool match(TokenType type) {
 static Expr* expression();
 
 static Expr* atom() {
-    if (match(TOKEN_NUMBER)){
-        BigInt a = bigint_from_int(69);
-        bigint_init(&a, atoi(parser.previous.start));
+    if (match(TOKEN_NUMBER)) {
+        BigInt a = bigint_from_str(parser.previous.start, parser.previous.length);
         return (Expr*)makeExprNumber(a);
     }
     if (match(TOKEN_IDENTIFIER))
