@@ -1,0 +1,41 @@
+file       : statement* EOF ;
+
+statement  : assignment
+           | print_stmt
+           | if_stmt
+           | while_stmt
+           | category_stmt
+           ;
+
+
+assignment  : IDENTIFIER '=' expression NEWLINE ;
+print_stmt  : 'print' expression NEWLINE ;
+
+
+block       : NEWLINE INDENT statement+ DEDENT ;
+
+category_block : NEWLINE INDENT 'obj' ':' objects 'hom' ':' homset DEDENT ;
+objects     :  NEWLINE INDENT numbers DEDENT ;
+homset      :  NEWLINE (INDENT morphism+ DEDENT)? ;
+
+numbers     : NUMBER (NEWLINE? NUMBER)* NEWLINE ;
+morphism    : NUMBER '->' NUMBER+ NEWLINE ;
+
+if_stmt     : 'if' expression ':' block ( elif_stmt | else_block )? ;
+elif_stmt   : 'elif' expression ':' block ( elif_stmt | else_block )? ;
+else_block  : 'else' ':' block ;
+
+while_stmt  : 'while' expression ':' block ;
+
+category_stmt : 'cat' IDENTIFIER ':' category_block ;
+
+expression  : disjunction ;
+
+disjunction : conjunction ( 'or' conjunction )* ;
+conjunction : inversion ( 'and' inversion )* ;
+inversion   : 'not' inversion | comparison ;
+comparison  : sum ( ( '==' | '!=' | '<' | '>' ) sum )* ;
+sum         : term ( ( '+' | '-' ) term )* ;
+
+term        : '-' term | atom ;
+atom        : IDENTIFIER | NUMBER | '(' expression ')' ;

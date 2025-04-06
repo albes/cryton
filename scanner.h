@@ -17,7 +17,9 @@ typedef enum {
 
     TOKEN_NEWLINE, TOKEN_INDENT, TOKEN_DEDENT,
 
-    TOKEN_EOF, TOKEN_ERROR
+    TOKEN_EOF, TOKEN_ERROR,
+
+    TOKEN_CAT, TOKEN_OBJ, TOKEN_HOM, TOKEN_ARROW
 } TokenType;
 
 extern const char* TokenName[];
