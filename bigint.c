@@ -78,7 +78,7 @@ void bigint_print(BigInt* num) {
     for (int i = num->length - 1; i >= 0; --i) {
         putchar(num->digits[i]);
     }
-    putchar('\n');
+    // putchar('\n');
 }
 
 // Compare absolute values of two BigInts (returns 1 if a > b, -1 if a < b, 0 if equal)

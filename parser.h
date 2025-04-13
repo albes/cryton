@@ -40,7 +40,8 @@ typedef struct {
 
 typedef enum {
     STMT_ASSIGN, STMT_PRINT,
-    STMT_IF, STMT_WHILE
+    STMT_IF, STMT_WHILE,
+    STMT_CAT
 } StmtType;
 
 typedef struct Stmt Stmt;
@@ -73,6 +74,29 @@ typedef struct {
     Expr* condition;
     Stmt* body;
 } StmtWhile;
+
+typedef struct {
+    BigInt* values;
+    int count;
+} ObjectList;
+
+typedef struct {
+    BigInt from;
+    BigInt* to;
+    int toCount;
+} Morphism;
+
+typedef struct {
+    Morphism* morphisms;
+    int count;
+} HomSet;
+
+typedef struct {
+    Stmt stmt;
+    ObjString* name;
+    ObjectList objects;
+    HomSet homset;
+} StmtCat;
 
 bool parse(const char* source, Stmt** stmts);
 void freeAST(Stmt* stmts);

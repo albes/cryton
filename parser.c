@@ -315,6 +315,182 @@ static void synchronize() {
     }
 }
 
+Morphism parseMorphism() {
+    Morphism m;
+    m.from = bigint_from_str(parser.current.start, parser.current.length);
+    advance();
+
+    consume(TOKEN_ARROW, "Expect '->' in morphism.");
+
+    // TODO more objects in morphisms
+    m.to = malloc(sizeof(BigInt) * 32);
+    m.toCount = 0;
+
+    while (parser.current.type == TOKEN_NUMBER) {
+        m.to[m.toCount++] = bigint_from_str(parser.current.start, parser.current.length);
+        advance();
+    }
+
+    consume(TOKEN_NEWLINE, "Expect NEWLINE after morphism.");
+
+    return m;
+}
+
+void parseHomset(HomSet* homset) {
+    //TODO more morphisms
+    homset->morphisms = malloc(sizeof(Morphism) * 1024);
+    homset->count = 0;
+
+    if (match(TOKEN_NEWLINE)) {
+        if (match(TOKEN_INDENT)) {
+            while (parser.current.type == TOKEN_NUMBER) {
+                homset->morphisms[homset->count++] = parseMorphism();
+            }
+            consume(TOKEN_DEDENT, "Expect DEDENT after homset.");
+        }
+    }
+}
+
+void parseObjects(ObjectList* objects) {
+    consume(TOKEN_NEWLINE, "Expect NEWLINE before object list.");
+    consume(TOKEN_INDENT, "Expect INDENT before object list.");
+
+    //TODO more objects
+    BigInt* values = malloc(sizeof(BigInt) * 1024);
+    int count = 0;
+
+    while (parser.current.type == TOKEN_NUMBER) {
+        values[count++] = bigint_from_str(parser.current.start, parser.current.length);
+        advance();
+
+        while (parser.current.type == TOKEN_NUMBER) {
+            values[count++] = bigint_from_str(parser.current.start, parser.current.length);
+            advance();
+        }
+
+        if (parser.current.type == TOKEN_NEWLINE)
+            advance();
+    }
+
+    consume(TOKEN_DEDENT, "Expect DEDENT after object list.");
+
+    objects->values = values;
+    objects->count = count;
+}
+
+void parseCategoryBlock(ObjectList* objects, HomSet* homset) {
+    consume(TOKEN_NEWLINE, "Expect NEWLINE before category block.");
+    consume(TOKEN_INDENT, "Expect INDENT before category block.");
+
+    consume(TOKEN_OBJ, "Expect 'obj' in category block.");
+    consume(TOKEN_COLON, "Expect ':' after 'obj'.");
+
+    parseObjects(objects);
+
+    consume(TOKEN_HOM, "Expect 'hom' in category block.");
+    consume(TOKEN_COLON, "Expect ':' after 'hom'.");
+
+    parseHomset(homset);
+
+    consume(TOKEN_DEDENT, "Expect DEDENT after category block.");
+}
+
+StmtCat* makeStmtCat(ObjString* name, ObjectList objects, HomSet homset) {
+    StmtCat* stmt = malloc(sizeof(StmtCat));
+    stmt->stmt.type = STMT_CAT;
+    stmt->stmt.next = NULL;
+    stmt->name = name;
+    stmt->objects = objects;
+    stmt->homset = homset;
+    return stmt;
+}
+
+
+Stmt* catStmt() {
+    consume(TOKEN_IDENTIFIER, "Expect category name after 'cat'.");
+    ObjString* name = copyString(parser.previous.start, parser.previous.length);
+
+    consume(TOKEN_COLON, "Expect ':' after category name.");
+
+    ObjectList objects;
+    HomSet homset;
+    parseCategoryBlock(&objects, &homset);
+
+    return (Stmt*)makeStmtCat(name, objects, homset);
+}
+
+
+
+// Stmt* catStmt() {
+//     // Expect a name after 'cat'
+//     consume(TOKEN_IDENTIFIER, "Expect category name after 'cat'.");
+//     ObjString* objName = copyString(parser.previous.start, parser.previous.length);
+
+//     consume(TOKEN_COLON, "Expect ':' after category name.");
+//     consume(TOKEN_NEWLINE, "Expect NEWLINE before category block.");
+//     consume(TOKEN_INDENT, "Expect INDENT before category block.");
+
+
+//     consume(TOKEN_OBJ, "Expect 'obj' in the category block.");
+//     consume(TOKEN_COLON, "Expect ':' after 'obj'.");
+//     consume(TOKEN_NEWLINE, "Expect NEWLINE before object list.");
+//     consume(TOKEN_INDENT, "Expect INDENT before object list.");
+
+//     // Parse object list
+//     BigInt objectValues[1024]; // adjust as needed
+//     int objCount = 0;
+
+//     while (parser.current.type == TOKEN_NUMBER) {
+//         objectValues[objCount++] = bigint_from_str(parser.current.start, parser.current.length);
+//         advance();
+//         while (parser.current.type == TOKEN_NUMBER) {
+//             objectValues[objCount++] = bigint_from_str(parser.current.start, parser.current.length);
+//             advance();
+//         }
+//         if (parser.current.type == TOKEN_NEWLINE) {
+//             advance();
+//         }
+//     }
+
+//     consume(TOKEN_DEDENT, "Expect DEDENT after object list.");
+
+
+
+//     consume(TOKEN_HOM, "Expect 'hom' in the category block.");
+//     consume(TOKEN_COLON, "Expect ':' after 'hom'.");
+
+
+//     Morphism morphisms[1024];
+//     int morphismCount = 0;
+
+//     if (match(TOKEN_NEWLINE)) {
+//         if (match(TOKEN_INDENT)) {
+//             while (parser.current.type == TOKEN_NUMBER) {
+//                 Morphism m;
+//                 m.from = bigint_from_str(parser.current.start, parser.current.length);
+//                 advance();
+
+//                 consume(TOKEN_ARROW, "Expect '->' in morphism.");
+//                 m.to = malloc(sizeof(BigInt) * 32); // arbitrary
+//                 m.toCount = 0;
+
+//                 while (parser.current.type == TOKEN_NUMBER) {
+//                     m.to[m.toCount++] = bigint_from_str(parser.current.start, parser.current.length);
+//                     advance();
+//                 }
+
+//                 consume(TOKEN_NEWLINE, "Expect NEWLINE after morphism.");
+//                 morphisms[morphismCount++] = m;
+//             }
+//             consume(TOKEN_DEDENT, "Expect DEDENT after homset.");
+//         }
+//     }
+
+//     consume(TOKEN_DEDENT, "Expect DEDENT after category block.");
+// }
+
+
+
 static Stmt* statement() {
     if (parser.panicMode)
         synchronize();
@@ -323,6 +499,7 @@ static Stmt* statement() {
     if (match(TOKEN_PRINT))      return      print();
     if (match(TOKEN_IF))         return     ifStmt();
     if (match(TOKEN_WHILE))      return  whileStmt();
+    if (match(TOKEN_CAT))        return    catStmt();
 
     errorAtCurrent("Expect statement.");
     synchronize();
@@ -406,6 +583,7 @@ void freeAST(Stmt* stmts) {
             case STMT_PRINT  : freeStmtPrint((StmtPrint*)stmts);   break;
             case STMT_IF     : freeStmtIf((StmtIf*)stmts);         break;
             case STMT_WHILE  : freeStmtWhile((StmtWhile*)stmts);   break;
+            // TODO: cleanup STMT_CAT
         }
         stmts = next;
     }

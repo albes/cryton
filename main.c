@@ -74,6 +74,7 @@ static void printExpr(Expr* expr) {
 
         printf("Number ");
         bigint_print(&e->value);
+        putchar('\n');
     } else if (expr->type == EXPR_VAR) {
         ExprVar* e = (ExprVar*)expr;
 
@@ -112,6 +113,35 @@ static void printStmtWhile(StmtWhile* stmt) {
     printStmt(stmt->body);
 }
 
+static void printStmtCat(StmtCat* stmt) {
+    printf("Category %s\n", stmt->name->chars);
+
+    printf("   Objects\n");
+
+    for(int i = 0; i < (stmt->objects.count); ++i) {
+        printf("      ");
+        bigint_print(&stmt->objects.values[i]);
+        putchar('\n');
+    }
+    
+
+    printf("   Homset\n");
+    for(int i = 0; i < (stmt->homset.count); ++i) {
+        printf("      ");
+        Morphism* morphism = &stmt->homset.morphisms[i];
+        bigint_print(&morphism->from);
+        printf(" -> ");
+
+        for(int j = 0; j < (morphism->toCount); ++j) {
+            bigint_print(&morphism->to[j]);
+            putchar(' ');
+        }
+
+        putchar('\n');
+    }
+    // printStmt(stmt->objects);
+}
+
 static void printStmt(Stmt* stmt) {
     if (stmt == NULL) {
         printf("NULL\n");
@@ -125,6 +155,7 @@ static void printStmt(Stmt* stmt) {
             case STMT_PRINT    : printStmtPrint((StmtPrint*)stmt);   break;
             case STMT_IF       : printStmtIf((StmtIf*)stmt);         break;
             case STMT_WHILE    : printStmtWhile((StmtWhile*)stmt);   break;
+            case STMT_CAT      : printStmtCat((StmtCat*)stmt);       break;
             default            : printf("Unknown stmt\n");           break;
         }
         stmt = stmt->next;
@@ -137,28 +168,28 @@ static void runFile(const char* path) {
 
     initScanner(source);
 
-    // int line = -1;
+    int line = -1;
 
-    // for (;;) {
-    //     Token token = scanToken();
+    for (;;) {
+        Token token = scanToken();
 
-    //     if (token.line != line) {
-    //         printf("%4d ", token.line);
-    //         line = token.line;
-    //     } else {
-    //         printf("   | ");
-    //     }
+        if (token.line != line) {
+            printf("%4d ", token.line);
+            line = token.line;
+        } else {
+            printf("   | ");
+        }
 
-    //     printf("%s '%.*s'\n", TokenName[token.type], token.length, token.start);
+        printf("%s '%.*s'\n", TokenName[token.type], token.length, token.start);
 
-    //     if (token.type == TOKEN_EOF) break;
-    // }
+        if (token.type == TOKEN_EOF) break;
+    }
 
     Stmt* stmts;
 
     if (parse(source, &stmts)) {
-        interpret(stmts);
-        // printStmt(stmts);
+        // interpret(stmts);
+        printStmt(stmts);
     }
 
     freeAST(stmts);

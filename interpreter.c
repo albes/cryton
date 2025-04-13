@@ -95,6 +95,7 @@ void interpretAssign(StmtAssign* stmt) {
 void interpretPrint(StmtPrint* stmt) {
     BigInt num = interpretExpr(stmt->expr);
     bigint_print(&num);
+    putchar('\n');
 }
 
 void interpretIf(StmtIf* stmt) {
