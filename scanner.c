@@ -22,7 +22,9 @@ const char* TokenName[] = {
 
     "TOKEN_EOF", "TOKEN_ERROR",
 
-    "TOKEN_CAT", "TOKEN_OBJ", "TOKEN_HOM", "TOKEN_ARROW"
+    "TOKEN_CAT", "TOKEN_OBJ", "TOKEN_HOM", "TOKEN_ARROW",
+
+    "TOKEN_IN"
 };
 
 typedef struct {
@@ -141,7 +143,10 @@ static TokenType identifierType() {
                     case 's' : return checkKeyword(3, 1, "e", TOKEN_ELSE);
                 }
             }
-        case 'i' : return checkKeyword(1, 1, "f", TOKEN_IF);
+        case 'i':
+            if (scanner.current - scanner.start == 2 && scanner.start[1] == 'n')
+                return TOKEN_IN;
+            return checkKeyword(1, 1, "f", TOKEN_IF);
         case 'n' : return checkKeyword(1, 2, "ot", TOKEN_NOT);
         case 'o' : 
             if (scanner.current - scanner.start > 2 && scanner.start[1] == 'b')
