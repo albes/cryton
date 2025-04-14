@@ -315,67 +315,68 @@ static void synchronize() {
     }
 }
 
+static void parseBigIntSequence(BigInt** list, int* outCount, bool allow_newlines) {
+    int capacity = 8;
+    int count = 0;
+    BigInt* values = malloc(sizeof(BigInt) * capacity);
+
+    while (parser.current.type == TOKEN_NUMBER) {
+        if (count >= capacity) {
+            capacity *= 2;
+            values = realloc(values, sizeof(BigInt) * capacity);
+        }
+
+        values[count++] = bigint_from_str(parser.current.start, parser.current.length);
+        advance();
+
+        if (allow_newlines && parser.current.type == TOKEN_NEWLINE) {
+            advance();
+        }
+    }
+
+    *outCount = count;
+    *list = values;
+}
+
 Morphism parseMorphism() {
     Morphism m;
     m.from = bigint_from_str(parser.current.start, parser.current.length);
     advance();
-
     consume(TOKEN_ARROW, "Expect '->' in morphism.");
 
-    // TODO more objects in morphisms
-    m.to = malloc(sizeof(BigInt) * 32);
-    m.toCount = 0;
-
-    while (parser.current.type == TOKEN_NUMBER) {
-        m.to[m.toCount++] = bigint_from_str(parser.current.start, parser.current.length);
-        advance();
-    }
-
+    parseBigIntSequence(&m.to, &m.toCount, false);
     consume(TOKEN_NEWLINE, "Expect NEWLINE after morphism.");
 
     return m;
 }
 
 void parseHomset(HomSet* homset) {
-    //TODO more morphisms
-    homset->morphisms = malloc(sizeof(Morphism) * 1024);
+    int capacity = 8; // start small, grow as needed
+    homset->morphisms = malloc(sizeof(Morphism) * capacity);
     homset->count = 0;
 
-    if (match(TOKEN_NEWLINE)) {
-        if (match(TOKEN_INDENT)) {
-            while (parser.current.type == TOKEN_NUMBER) {
-                homset->morphisms[homset->count++] = parseMorphism();
+    consume(TOKEN_NEWLINE, "Expect NEWLINE after 'hom'.");
+
+    if (match(TOKEN_INDENT)) {
+        while (parser.current.type == TOKEN_NUMBER) {
+            if (homset->count >= capacity) {
+                capacity *= 2;
+                homset->morphisms = realloc(homset->morphisms, sizeof(Morphism) * capacity);
             }
-            consume(TOKEN_DEDENT, "Expect DEDENT after homset.");
+
+            homset->morphisms[homset->count++] = parseMorphism();
         }
+        consume(TOKEN_DEDENT, "Expect DEDENT after homset.");
     }
 }
+
 
 void parseObjects(ObjectList* objects) {
     consume(TOKEN_NEWLINE, "Expect NEWLINE before object list.");
     consume(TOKEN_INDENT, "Expect INDENT before object list.");
 
-    //TODO more objects
-    BigInt* values = malloc(sizeof(BigInt) * 1024);
-    int count = 0;
-
-    while (parser.current.type == TOKEN_NUMBER) {
-        values[count++] = bigint_from_str(parser.current.start, parser.current.length);
-        advance();
-
-        while (parser.current.type == TOKEN_NUMBER) {
-            values[count++] = bigint_from_str(parser.current.start, parser.current.length);
-            advance();
-        }
-
-        if (parser.current.type == TOKEN_NEWLINE)
-            advance();
-    }
-
+    parseBigIntSequence(&objects->values, &objects->count, true);
     consume(TOKEN_DEDENT, "Expect DEDENT after object list.");
-
-    objects->values = values;
-    objects->count = count;
 }
 
 void parseCategoryBlock(ObjectList* objects, HomSet* homset) {
