@@ -315,19 +315,39 @@ static void synchronize() {
     }
 }
 
-static void parseBigIntSequence(BigInt** list, int* outCount, bool allow_newlines) {
+static BigInt parseObject() {
+    int sign = 1;
+
+    if (match(TOKEN_MINUS)) {
+        sign = -1;
+    }
+
+    if (parser.current.type != TOKEN_NUMBER) {
+        errorAtCurrent("Expect NUMBER.");
+        return bigint_from_int(0);
+    }
+
+    BigInt obj = bigint_from_str(parser.current.start, parser.current.length);
+    obj.sign = sign;
+    
+    advance();
+
+    return obj;
+}
+
+static void parseObjectSequence(BigInt** list, int* outCount, bool allow_newlines) {
     int capacity = 8;
     int count = 0;
     BigInt* values = malloc(sizeof(BigInt) * capacity);
 
-    while (parser.current.type == TOKEN_NUMBER) {
+    while (parser.current.type == TOKEN_NUMBER ||
+           parser.current.type == TOKEN_MINUS) {
         if (count >= capacity) {
             capacity *= 2;
             values = realloc(values, sizeof(BigInt) * capacity);
         }
 
-        values[count++] = bigint_from_str(parser.current.start, parser.current.length);
-        advance();
+        values[count++] = parseObject();
 
         if (allow_newlines && parser.current.type == TOKEN_NEWLINE) {
             advance();
@@ -340,11 +360,10 @@ static void parseBigIntSequence(BigInt** list, int* outCount, bool allow_newline
 
 Morphism parseMorphism() {
     Morphism m;
-    m.from = bigint_from_str(parser.current.start, parser.current.length);
-    advance();
+    m.from = parseObject();
     consume(TOKEN_ARROW, "Expect '->' in morphism.");
 
-    parseBigIntSequence(&m.to, &m.toCount, false);
+    parseObjectSequence(&m.to, &m.toCount, false);
     consume(TOKEN_NEWLINE, "Expect NEWLINE after morphism.");
 
     return m;
@@ -358,7 +377,8 @@ void parseHomset(HomSet* homset) {
     consume(TOKEN_NEWLINE, "Expect NEWLINE after 'hom'.");
 
     if (match(TOKEN_INDENT)) {
-        while (parser.current.type == TOKEN_NUMBER) {
+        while (parser.current.type == TOKEN_NUMBER ||
+               parser.current.type == TOKEN_MINUS) {
             if (homset->count >= capacity) {
                 capacity *= 2;
                 homset->morphisms = realloc(homset->morphisms, sizeof(Morphism) * capacity);
@@ -375,7 +395,7 @@ void parseObjects(ObjectList* objects) {
     consume(TOKEN_NEWLINE, "Expect NEWLINE before object list.");
     consume(TOKEN_INDENT, "Expect INDENT before object list.");
 
-    parseBigIntSequence(&objects->values, &objects->count, true);
+    parseObjectSequence(&objects->values, &objects->count, true);
     consume(TOKEN_DEDENT, "Expect DEDENT after object list.");
 }
 

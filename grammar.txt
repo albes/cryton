@@ -18,8 +18,9 @@ category_block : NEWLINE INDENT 'obj' ':' objects 'hom' ':' homset DEDENT ;
 objects     :  NEWLINE INDENT numbers DEDENT ;
 homset      :  NEWLINE (INDENT morphism+ DEDENT)? ;
 
-numbers     : NUMBER (NEWLINE? NUMBER)* NEWLINE ;
-morphism    : NUMBER '->' NUMBER+ NEWLINE ;
+numbers     : object (NEWLINE? object)* NEWLINE ;
+morphism    : object '->' object+ NEWLINE ;
+object      : '-'? NUMBER ;
 
 if_stmt     : 'if' expression ':' block ( elif_stmt | else_block )? ;
 elif_stmt   : 'elif' expression ':' block ( elif_stmt | else_block )? ;
