@@ -100,6 +100,22 @@ static void printExpr(Expr* expr) {
         ExprVar* e = (ExprVar*)expr;
 
         printf("Var %s\n", e->name->chars);
+    } else if (expr->type == EXPR_IN) {
+        ExprIn* e = (ExprIn*)expr;
+
+        printf("In Expression \n");
+        printExpr(e->element);
+
+        printf("In Var %s \n", e->name->name->chars);
+    } else if (expr->type == EXPR_MORPHISM) {
+        ExprMorphism* e = (ExprMorphism*)expr;
+
+        printf("Morphism\n");
+        printExpr(e->from);
+        printf("  | \n ");
+        printf(" V\n");
+        printExpr(e->to);
+
     } else {
         printf("Unknown expr\n");
     }

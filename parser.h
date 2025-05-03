@@ -7,8 +7,10 @@
 
 typedef enum {
     EXPR_BINARY, EXPR_UNARY,
-    EXPR_NUMBER, EXPR_VAR
+    EXPR_NUMBER, EXPR_VAR,
+    EXPR_IN, EXPR_MORPHISM
 } ExprType;
+
 
 typedef struct {
     ExprType type;
@@ -100,5 +102,17 @@ typedef struct {
 
 bool parse(const char* source, Stmt** stmts);
 void freeAST(Stmt* stmts);
+
+typedef struct {
+    ExprType type;
+    Expr* from;
+    Expr* to;
+} ExprMorphism;
+
+typedef struct {
+    Expr expr;
+    Expr* element;
+    ExprVar* name;     // change to type to smth else in the future
+} ExprIn;
 
 #endif

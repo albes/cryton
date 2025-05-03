@@ -34,7 +34,10 @@ expression  : disjunction ;
 
 disjunction : conjunction ( 'or' conjunction )* ;
 conjunction : inversion ( 'and' inversion )* ;
-inversion   : 'not' inversion | comparison ;
+inversion   : 'not' inversion | membership;
+
+membership  : comparison ( ('->' comparison)? 'in' IDENTIFIER )? ;
+
 comparison  : sum ( ( '==' | '!=' | '<' | '>' ) sum )* ;
 sum         : term ( ( '+' | '-' ) term )* ;
 
