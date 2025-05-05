@@ -1,10 +1,13 @@
 #include <stdio.h>
 
 #include "common.h"
+#include "object.h"
 #include "table.h"
 #include "interpreter.h"
 
 Interp interp;
+RuntimeCategory* savedCategories[256];
+int savedCategoryCount = 0;
 
 void initInterp() {
     initTable(&interp.strings);
@@ -61,6 +64,137 @@ BigInt interpretUnary(ExprUnary* expr) {
     return result;
 }
 
+void saveCategory(RuntimeCategory* cat) {
+    savedCategories[savedCategoryCount++] = cat;
+}
+
+RuntimeCategory* getCategoryByName(ObjString* name) {
+    for (int i = 0; i < savedCategoryCount; i++) {
+        if (savedCategories[i]->name->length == name->length &&
+            memcmp(savedCategories[i]->name->chars, name->chars, name->length) == 0) {
+            return savedCategories[i];
+        }
+    }
+    return NULL;
+}
+
+bool isObjectInCategory(RuntimeCategory* cat, BigInt* obj) {
+    for (int i = 0; i < cat->objects.count; i++) {
+        if (bigint_abs_compare(&cat->objects.values[i], obj) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool isMorphismInCategory(RuntimeCategory* cat, BigInt* from, BigInt* to) {
+    for (int i = 0; i < cat->homset.count; i++) {
+        Morphism* m = &cat->homset.morphisms[i];
+        if (bigint_abs_compare(&m->from, from) == 0) {
+            for (int j = 0; j < m->toCount; j++) {
+                if (bigint_abs_compare(&m->to[j], to) == 0) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+//InterpretIn only for objects in category
+// BigInt interpretIn(ExprIn* expr) {
+//     BigInt obj = interpretExpr(expr->element);  // e.g., 5
+//     BigInt catNameVal = interpretExpr((Expr*)expr->name);
+
+//     // Validate category name is a variable (a string-like representation)
+//     if (expr->name->type != EXPR_VAR) {
+//         fprintf(stderr, "Right-hand side of 'in' must be a category name.\n");
+//         return bigint_from_int(0);
+//     }
+
+//     ObjString* name = ((ExprVar*)expr->name)->name;
+//     RuntimeCategory* cat = getCategoryByName(name);
+//     if (cat == NULL) {
+//         fprintf(stderr, "Undefined category '%.*s'\n", name->length, name->chars);
+//         return bigint_from_int(0);
+//     }
+
+//     if (isObjectInCategory(cat, &obj)) {
+//         return bigint_from_int(1);
+//     } else {
+//         return bigint_from_int(0);
+//     }
+// }
+
+BigInt interpretIn(ExprIn* expr) {
+    if (expr->name->type != EXPR_VAR) {
+        fprintf(stderr, "'in' expects a category name on the right.\n");
+        return bigint_from_int(0);
+    }
+
+    ObjString* name = ((ExprVar*)expr->name)->name;
+    RuntimeCategory* cat = getCategoryByName(name);
+    if (!cat) {
+        fprintf(stderr, "Undefined category '%.*s'\n", name->length, name->chars);
+        return bigint_from_int(0);
+    }
+
+    if (expr->element->type == EXPR_MORPHISM) {
+        ExprMorphism* morph = (ExprMorphism*)expr->element;
+        BigInt from = interpretExpr(morph->from);
+        BigInt to   = interpretExpr(morph->to);
+
+        if (isMorphismInCategory(cat, &from, &to)) {
+            return bigint_from_int(1);
+        } else {
+            return bigint_from_int(0);
+        }
+
+    } else {
+        BigInt obj = interpretExpr(expr->element);
+        if (isObjectInCategory(cat, &obj)) {
+            return bigint_from_int(1);
+        } else {
+            return bigint_from_int(0);
+        }
+    }
+}
+
+void interpretCategory(StmtCat* cat) {
+    // printf("Category: %.*s\n", cat->name->length, cat->name->chars);
+
+    // Print and build the category
+    RuntimeCategory* runtimeCat = malloc(sizeof(RuntimeCategory));
+    runtimeCat->name = cat->name;
+
+    // Deep copy the object values
+    runtimeCat->objects.count = cat->objects.count;
+    runtimeCat->objects.values = malloc(sizeof(Value) * cat->objects.count);
+    for (int i = 0; i < cat->objects.count; i++) {
+        runtimeCat->objects.values[i] = cat->objects.values[i];  // Assuming Value is POD
+    }
+
+    // Deep copy the morphisms
+    runtimeCat->homset.count = cat->homset.count;
+    runtimeCat->homset.morphisms = malloc(sizeof(Morphism) * cat->homset.count);
+    for (int i = 0; i < cat->homset.count; i++) {
+        Morphism* dest = &runtimeCat->homset.morphisms[i];
+        Morphism* src = &cat->homset.morphisms[i];
+
+        dest->from = src->from;
+        dest->toCount = src->toCount;
+        dest->to = malloc(sizeof(BigInt) * src->toCount);
+        for (int j = 0; j < src->toCount; j++) {
+            dest->to[j] = src->to[j];
+        }
+    }
+
+    // Save to global memory or interpreter state
+    saveCategory(runtimeCat);
+    // savedCategories[savedCategoryCount++] = runtimeCat;
+}
+
+
 BigInt interpretNumber(ExprNumber* expr) {
     return expr->value;
 }
@@ -78,6 +212,8 @@ BigInt interpretExpr(Expr* expr) {
         case EXPR_UNARY  : return interpretUnary((ExprUnary*)expr);
         case EXPR_NUMBER : return interpretNumber((ExprNumber*)expr);
         case EXPR_VAR    : return interpretVar((ExprVar*)expr);
+        case EXPR_IN     : return interpretIn((ExprIn*)expr);
+        //case EXPR_MORPHISM  : return bigint_from_int(0);
     }
 
     return bigint_from_int(0);
@@ -127,6 +263,7 @@ void interpretStmt(Stmt* stmt) {
         case STMT_PRINT: interpretPrint((StmtPrint*)stmt); break;
         case STMT_IF: interpretIf((StmtIf*)stmt); break;
         case STMT_WHILE: interpretWhile((StmtWhile*)stmt); break;
+        case STMT_CAT: interpretCategory((StmtCat*)stmt); break;
     }
 }
 

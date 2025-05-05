@@ -11,6 +11,19 @@ typedef struct {
 
 extern Interp interp;
 
+typedef struct {
+    ObjString* name;
+    ObjectList objects;
+    HomSet homset;
+} RuntimeCategory;
+
+#define MAX_CATEGORIES 256
+
+typedef struct {
+    RuntimeCategory categories[MAX_CATEGORIES];
+    int categoryCount;
+} Runtime;
+
 void initInterp();
 void freeInterp();
 BigInt interpretExpr(Expr* expr);
