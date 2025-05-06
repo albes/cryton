@@ -126,6 +126,11 @@ bool tableSet(Table* table, ObjString* key, Value value) {
 
     Entry* entry = findEntry(table->entries, table->capacity, key);
     bool isNewKey = entry->key == NULL;
+
+    if(!isNewKey && entry->value.type == VALUE_CATEGORY) {
+        freeCategory(entry->value.category);
+    }
+    
     if (isNewKey && entry->value.type == VALUE_NULL)
         table->count++;
 

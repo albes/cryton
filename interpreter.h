@@ -4,10 +4,15 @@
 #include "bigint.h"
 #include "table.h"
 #include "parser.h"
+#include <stdlib.h>
+#include <stdarg.h>
+#include <setjmp.h>
 
 typedef struct {
     Table strings;
+    jmp_buf errJmpBuf;
 } Interp;
+
 
 extern Interp interp;
 

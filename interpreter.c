@@ -7,6 +7,16 @@
 
 Interp interp;
 
+void runtimeError(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    fprintf(stderr, "\n");
+    va_end(args);
+
+    longjmp(interp.errJmpBuf, 1);
+}
+
 void initInterp() {
     initTable(&interp.strings);
 }
@@ -29,11 +39,9 @@ BigInt interpretBinary(ExprBinary* expr) {
         case TOKEN_EQUAL_EQUAL : bigint_init(&result, bigint_abs_compare(&left, &right) == 0); break;
         case TOKEN_BANG_EQUAL  : bigint_init(&result, bigint_abs_compare(&left, &right) != 0); break;
         case TOKEN_AND         : bigint_init(&result, bigint_abs_compare(&left, &zero) != 0
-                                                   && bigint_abs_compare(&right, &zero) != 0);
-                                 break;
+                                                   && bigint_abs_compare(&right, &zero) != 0); break;
         case TOKEN_OR          : bigint_init(&result, bigint_abs_compare(&left, &zero) != 0
-                                                   || bigint_abs_compare(&right, &zero) != 0);
-                                 break;
+                                                   || bigint_abs_compare(&right, &zero) != 0); break;
     }
 
     return result;
@@ -42,20 +50,17 @@ BigInt interpretBinary(ExprBinary* expr) {
 BigInt interpretUnary(ExprUnary* expr) {
     BigInt result = bigint_from_int(0);
     BigInt zero = bigint_from_int(0);
-
     BigInt val = interpretExpr(expr->right);
 
     switch (expr->operator) {
-        case TOKEN_MINUS : 
+        case TOKEN_MINUS:
             val.sign = -val.sign;
             return val;
-        case TOKEN_NOT   :
-            if (bigint_abs_compare(&val, &zero) == 0){
+        case TOKEN_NOT:
+            if (bigint_abs_compare(&val, &zero) == 0)
                 bigint_init(&val, 1);
-            }
-            else{
+            else
                 bigint_init(&val, 0);
-            }
             return val;
     }
 
@@ -67,7 +72,6 @@ void saveCategory(RuntimeCategory* cat) {
     tableSet(&interp.strings, cat->name, val);
 }
 
-
 RuntimeCategory* getCategoryByName(ObjString* name) {
     Value val;
     if (tableGet(&interp.strings, name, &val) && val.type == VALUE_CATEGORY) {
@@ -75,7 +79,6 @@ RuntimeCategory* getCategoryByName(ObjString* name) {
     }
     return NULL;
 }
-
 
 bool isObjectInCategory(RuntimeCategory* cat, BigInt* obj) {
     for (int i = 0; i < cat->objects.count; i++) {
@@ -90,7 +93,6 @@ bool dfs(RuntimeCategory* cat, BigInt* current, BigInt* target, bool* visited, i
     for (int i = 0; i < cat->homset.count; i++) {
         Morphism* m = &cat->homset.morphisms[i];
 
-        // Skip if this morphism doesn't start at the current node
         if (bigint_abs_compare(&m->from, current) != 0) continue;
 
         for (int j = 0; j < m->toCount; j++) {
@@ -98,7 +100,6 @@ bool dfs(RuntimeCategory* cat, BigInt* current, BigInt* target, bool* visited, i
 
             if (bigint_abs_compare(neighbor, target) == 0) return true;
 
-            // Find index of neighbor in objects
             int idx = -1;
             for (int k = 0; k < cat->objects.count; k++) {
                 if (bigint_abs_compare(neighbor, &cat->objects.values[k]) == 0) {
@@ -123,7 +124,6 @@ bool isMorphismInCategory(RuntimeCategory* cat, BigInt* from, BigInt* to) {
     bool visited[count];
     for (int i = 0; i < count; i++) visited[i] = false;
 
-    // Mark the starting node as visited
     for (int i = 0; i < count; i++) {
         if (bigint_abs_compare(from, &cat->objects.values[i]) == 0) {
             visited[i] = true;
@@ -136,15 +136,13 @@ bool isMorphismInCategory(RuntimeCategory* cat, BigInt* from, BigInt* to) {
 
 BigInt interpretIn(ExprIn* expr) {
     if (expr->name->type != EXPR_VAR) {
-        fprintf(stderr, "'in' expects a category name on the right.\n");
-        return bigint_from_int(0);
+        runtimeError("'in' expects a category name on the right.");
     }
 
     ObjString* name = ((ExprVar*)expr->name)->name;
     RuntimeCategory* cat = getCategoryByName(name);
     if (!cat) {
-        fprintf(stderr, "Undefined category '%.*s'\n", name->length, name->chars);
-        return bigint_from_int(0);
+        runtimeError("Undefined category '%.*s'", name->length, name->chars);
     }
 
     if (expr->element->type == EXPR_MORPHISM) {
@@ -152,37 +150,23 @@ BigInt interpretIn(ExprIn* expr) {
         BigInt from = interpretExpr(morph->from);
         BigInt to   = interpretExpr(morph->to);
 
-        if (isMorphismInCategory(cat, &from, &to)) {
-            return bigint_from_int(1);
-        } else {
-            return bigint_from_int(0);
-        }
-
+        return bigint_from_int(isMorphismInCategory(cat, &from, &to));
     } else {
         BigInt obj = interpretExpr(expr->element);
-        if (isObjectInCategory(cat, &obj)) {
-            return bigint_from_int(1);
-        } else {
-            return bigint_from_int(0);
-        }
+        return bigint_from_int(isObjectInCategory(cat, &obj));
     }
 }
 
 void interpretCategory(StmtCat* cat) {
-    // printf("Category: %.*s\n", cat->name->length, cat->name->chars);
-
-    // Print and build the category
     RuntimeCategory* runtimeCat = malloc(sizeof(RuntimeCategory));
     runtimeCat->name = cat->name;
 
-    // Deep copy the object values
     runtimeCat->objects.count = cat->objects.count;
     runtimeCat->objects.values = malloc(sizeof(Value) * cat->objects.count);
     for (int i = 0; i < cat->objects.count; i++) {
-        runtimeCat->objects.values[i] = cat->objects.values[i];  // Assuming Value is POD
+        runtimeCat->objects.values[i] = cat->objects.values[i];
     }
 
-    // Deep copy the morphisms
     runtimeCat->homset.count = cat->homset.count;
     runtimeCat->homset.morphisms = malloc(sizeof(Morphism) * cat->homset.count);
     for (int i = 0; i < cat->homset.count; i++) {
@@ -197,35 +181,25 @@ void interpretCategory(StmtCat* cat) {
         }
     }
 
-    // Save to global memory or interpreter state
     saveCategory(runtimeCat);
-    // savedCategories[savedCategoryCount++] = runtimeCat;
 }
-
 
 BigInt interpretNumber(ExprNumber* expr) {
     return expr->value;
 }
 
-// TODO: runtime error with cateegories
 BigInt interpretVar(ExprVar* expr) {
     Value val;
-    tableGet(&interp.strings, expr->name, &val);
-    if (val.type == VALUE_NULL) {
-        fprintf(stderr, "Undefined variable '%.*s'\n", expr->name->length, expr->name->chars);
-        exit(69);
-        return bigint_from_int(0);
+    if (!tableGet(&interp.strings, expr->name, &val) || val.type == VALUE_NULL) {
+        runtimeError("Undefined variable '%.*s'", expr->name->length, expr->name->chars);
     }
 
     if (val.type != VALUE_NUMBER) {
-        fprintf(stderr, "'%.*s' is not a variable.\n", expr->name->length, expr->name->chars);
-        exit(69);
-        return bigint_from_int(0);
+        runtimeError("'%.*s' is not a variable.", expr->name->length, expr->name->chars);
     }
 
     return val.number;
 }
-
 
 BigInt interpretExpr(Expr* expr) {
     switch (expr->type) {
@@ -234,13 +208,9 @@ BigInt interpretExpr(Expr* expr) {
         case EXPR_NUMBER : return interpretNumber((ExprNumber*)expr);
         case EXPR_VAR    : return interpretVar((ExprVar*)expr);
         case EXPR_IN     : return interpretIn((ExprIn*)expr);
-        //case EXPR_MORPHISM  : return bigint_from_int(0);
     }
-
     return bigint_from_int(0);
 }
-
-void interpretStmt(Stmt* stmt);
 
 void interpretAssign(StmtAssign* stmt) {
     ExprVar* exprVar = (ExprVar*)stmt->left;
@@ -249,7 +219,6 @@ void interpretAssign(StmtAssign* stmt) {
     Value val = { .type = VALUE_NUMBER, .number = number };
     tableSet(&interp.strings, varName, val);
 }
-
 
 void interpretPrint(StmtPrint* stmt) {
     BigInt num = interpretExpr(stmt->expr);
@@ -283,16 +252,21 @@ void interpretStmt(Stmt* stmt) {
 
     switch (stmt->type) {
         case STMT_ASSIGN: interpretAssign((StmtAssign*)stmt); break;
-        case STMT_PRINT: interpretPrint((StmtPrint*)stmt); break;
-        case STMT_IF: interpretIf((StmtIf*)stmt); break;
-        case STMT_WHILE: interpretWhile((StmtWhile*)stmt); break;
-        case STMT_CAT: interpretCategory((StmtCat*)stmt); break;
+        case STMT_PRINT : interpretPrint((StmtPrint*)stmt); break;
+        case STMT_IF    : interpretIf((StmtIf*)stmt); break;
+        case STMT_WHILE : interpretWhile((StmtWhile*)stmt); break;
+        case STMT_CAT   : interpretCategory((StmtCat*)stmt); break;
     }
 }
 
 void interpret(Stmt* stmts) {
-    while (stmts != NULL) {
-        interpretStmt(stmts);
-        stmts = stmts->next;
+    if (setjmp(interp.errJmpBuf) == 0) {
+        while (stmts != NULL) {
+            interpretStmt(stmts);
+            stmts = stmts->next;
+        }
+    } else {
+        // Jumped here from runtimeError
+        fprintf(stderr, "Runtime error occurred. Aborting interpretation.\n");
     }
 }
