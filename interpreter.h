@@ -11,12 +11,6 @@ typedef struct {
 
 extern Interp interp;
 
-typedef struct {
-    ObjString* name;
-    ObjectList objects;
-    HomSet homset;
-} RuntimeCategory;
-
 #define MAX_CATEGORIES 256
 
 typedef struct {

@@ -6,8 +6,6 @@
 #include "interpreter.h"
 
 Interp interp;
-RuntimeCategory* savedCategories[256];
-int savedCategoryCount = 0;
 
 void initInterp() {
     initTable(&interp.strings);
@@ -65,28 +63,19 @@ BigInt interpretUnary(ExprUnary* expr) {
 }
 
 void saveCategory(RuntimeCategory* cat) {
-    for (int i = 0; i < savedCategoryCount; i++) {
-        if (savedCategories[i]->name->length == cat->name->length &&
-            memcmp(savedCategories[i]->name->chars, cat->name->chars, cat->name->length) == 0) {
-            // Found existing category with the same name; overwrite it
-            savedCategories[i] = cat;
-            return;
-        }
-    }
-
-    // Not found, append to the list
-    savedCategories[savedCategoryCount++] = cat;
+    Value val = { .type = VALUE_CATEGORY, .category = cat };
+    tableSet(&interp.strings, cat->name, val);
 }
 
+
 RuntimeCategory* getCategoryByName(ObjString* name) {
-    for (int i = 0; i < savedCategoryCount; i++) {
-        if (savedCategories[i]->name->length == name->length &&
-            memcmp(savedCategories[i]->name->chars, name->chars, name->length) == 0) {
-            return savedCategories[i];
-        }
+    Value val;
+    if (tableGet(&interp.strings, name, &val) && val.type == VALUE_CATEGORY) {
+        return val.category;
     }
     return NULL;
 }
+
 
 bool isObjectInCategory(RuntimeCategory* cat, BigInt* obj) {
     for (int i = 0; i < cat->objects.count; i++) {
@@ -218,12 +207,25 @@ BigInt interpretNumber(ExprNumber* expr) {
     return expr->value;
 }
 
-// TODO: report an error if variable is uninitialized
+// TODO: runtime error with cateegories
 BigInt interpretVar(ExprVar* expr) {
-    Value value = { VALUE_NUMBER, bigint_from_int(0) };
-    tableGet(&interp.strings, expr->name, &value);
-    return value.number;
+    Value val;
+    tableGet(&interp.strings, expr->name, &val);
+    if (val.type == VALUE_NULL) {
+        fprintf(stderr, "Undefined variable '%.*s'\n", expr->name->length, expr->name->chars);
+        exit(69);
+        return bigint_from_int(0);
+    }
+
+    if (val.type != VALUE_NUMBER) {
+        fprintf(stderr, "'%.*s' is not a variable.\n", expr->name->length, expr->name->chars);
+        exit(69);
+        return bigint_from_int(0);
+    }
+
+    return val.number;
 }
+
 
 BigInt interpretExpr(Expr* expr) {
     switch (expr->type) {
@@ -244,8 +246,10 @@ void interpretAssign(StmtAssign* stmt) {
     ExprVar* exprVar = (ExprVar*)stmt->left;
     ObjString* varName = exprVar->name;
     BigInt number = interpretExpr(stmt->right);
-    tableSet(&interp.strings, varName, (Value){ VALUE_NUMBER, number });
+    Value val = { .type = VALUE_NUMBER, .number = number };
+    tableSet(&interp.strings, varName, val);
 }
+
 
 void interpretPrint(StmtPrint* stmt) {
     BigInt num = interpretExpr(stmt->expr);

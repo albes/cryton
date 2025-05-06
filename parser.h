@@ -77,21 +77,6 @@ typedef struct {
     Stmt* body;
 } StmtWhile;
 
-typedef struct {
-    BigInt* values;
-    int count;
-} ObjectList;
-
-typedef struct {
-    BigInt from;
-    BigInt* to;
-    int toCount;
-} Morphism;
-
-typedef struct {
-    Morphism* morphisms;
-    int count;
-} HomSet;
 
 typedef struct {
     Stmt stmt;

@@ -15,16 +15,49 @@ void initTable(Table* table) {
     table->entries = NULL;
 }
 
+void freeCategory(RuntimeCategory* cat) {
+    if (cat == NULL) return;
+
+    // Free the array of objects
+    if (cat->objects.values != NULL) {
+        free(cat->objects.values);
+        cat->objects.values = NULL;
+    }
+
+    // Free each morphism's `to` array
+    for (int i = 0; i < cat->homset.count; i++) {
+        Morphism* m = &cat->homset.morphisms[i];
+        if (m->to != NULL) {
+            free(m->to);
+            m->to = NULL;
+        }
+    }
+
+    // Free the array of morphisms
+    if (cat->homset.morphisms != NULL) {
+        free(cat->homset.morphisms);
+        cat->homset.morphisms = NULL;
+    }
+
+    // Finally, free the category structure itself
+    free(cat);
+}
+
+
 // Free table and all contained strings
 void freeTable(Table* table) {
     if (table == NULL || table->entries == NULL)
         return;
 
     for (int i = 0; i < table->capacity; ++i) {
-        Entry* entry = &table->entries[i];
-        if (entry->key != NULL)
-            freeString(entry->key);
+    Entry* entry = &table->entries[i];
+    if (entry->key != NULL) {
+        freeString(entry->key);  // Clean key
+        if (entry->value.type == VALUE_CATEGORY && entry->value.category != NULL) {
+            freeCategory(entry->value.category);
+        }
     }
+}
 
     free(table->entries);
     initTable(table);

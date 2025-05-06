@@ -533,6 +533,19 @@ static void freeExprUnary(ExprUnary* expr) {
     free(expr);
 }
 
+static void freeExprIn(ExprIn* expr) {
+    freeExpr(expr->element);
+    if (expr->name != NULL)
+        free(expr->name);  // expr->name is an ExprVar* with allocated name string
+    free(expr);
+}
+
+static void freeExprMorphism(ExprMorphism* expr) {
+    freeExpr(expr->from);
+    freeExpr(expr->to);
+    free(expr);
+}
+
 static void freeExpr(Expr* expr) {
     if (expr == NULL)
         return;
@@ -542,6 +555,10 @@ static void freeExpr(Expr* expr) {
         case EXPR_UNARY  : freeExprUnary((ExprUnary*)expr);   break;
         case EXPR_NUMBER : free(expr);                        break;
         case EXPR_VAR    : free(expr);                        break;
+        case EXPR_IN     : freeExprIn((ExprIn*)expr);         break;
+        case EXPR_MORPHISM: freeExprMorphism((ExprMorphism*)expr); break;
+
+
     }
 }
 
