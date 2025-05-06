@@ -382,6 +382,11 @@ static void parseObjectSequence(BigInt** list, int* outCount, bool allow_newline
     int count = 0;
     BigInt* values = malloc(sizeof(BigInt) * capacity);
 
+    if (parser.current.type != TOKEN_NUMBER &&
+           parser.current.type != TOKEN_MINUS) {
+        
+        errorAtCurrent("Morphisms should point to at least one object");
+    }
     while (parser.current.type == TOKEN_NUMBER ||
            parser.current.type == TOKEN_MINUS) {
         if (count >= capacity) {

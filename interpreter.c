@@ -65,6 +65,16 @@ BigInt interpretUnary(ExprUnary* expr) {
 }
 
 void saveCategory(RuntimeCategory* cat) {
+    for (int i = 0; i < savedCategoryCount; i++) {
+        if (savedCategories[i]->name->length == cat->name->length &&
+            memcmp(savedCategories[i]->name->chars, cat->name->chars, cat->name->length) == 0) {
+            // Found existing category with the same name; overwrite it
+            savedCategories[i] = cat;
+            return;
+        }
+    }
+
+    // Not found, append to the list
     savedCategories[savedCategoryCount++] = cat;
 }
 
@@ -87,18 +97,52 @@ bool isObjectInCategory(RuntimeCategory* cat, BigInt* obj) {
     return false;
 }
 
-bool isMorphismInCategory(RuntimeCategory* cat, BigInt* from, BigInt* to) {
+bool dfs(RuntimeCategory* cat, BigInt* current, BigInt* target, bool* visited, int objectCount) {
     for (int i = 0; i < cat->homset.count; i++) {
         Morphism* m = &cat->homset.morphisms[i];
-        if (bigint_abs_compare(&m->from, from) == 0) {
-            for (int j = 0; j < m->toCount; j++) {
-                if (bigint_abs_compare(&m->to[j], to) == 0) {
+
+        // Skip if this morphism doesn't start at the current node
+        if (bigint_abs_compare(&m->from, current) != 0) continue;
+
+        for (int j = 0; j < m->toCount; j++) {
+            BigInt* neighbor = &m->to[j];
+
+            if (bigint_abs_compare(neighbor, target) == 0) return true;
+
+            // Find index of neighbor in objects
+            int idx = -1;
+            for (int k = 0; k < cat->objects.count; k++) {
+                if (bigint_abs_compare(neighbor, &cat->objects.values[k]) == 0) {
+                    idx = k;
+                    break;
+                }
+            }
+            if (idx >= 0 && !visited[idx]) {
+                visited[idx] = true;
+                if (dfs(cat, neighbor, target, visited, objectCount)) {
                     return true;
                 }
             }
         }
     }
+
     return false;
+}
+
+bool isMorphismInCategory(RuntimeCategory* cat, BigInt* from, BigInt* to) {
+    int count = cat->objects.count;
+    bool visited[count];
+    for (int i = 0; i < count; i++) visited[i] = false;
+
+    // Mark the starting node as visited
+    for (int i = 0; i < count; i++) {
+        if (bigint_abs_compare(from, &cat->objects.values[i]) == 0) {
+            visited[i] = true;
+            break;
+        }
+    }
+
+    return dfs(cat, from, to, visited, count);
 }
 
 //InterpretIn only for objects in category
