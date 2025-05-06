@@ -10,4 +10,5 @@ elif a == 3:
 elif a == 4:
     print(4)
 else:
+    # EXPECT: 99
     print(99)

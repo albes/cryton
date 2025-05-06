@@ -10,8 +10,7 @@ while (i < n):
     a = tmp
     i = i + 1
 
-
-#Output:
+# EXPECT START
 # 0
 # 1
 # 1
@@ -21,4 +20,5 @@ while (i < n):
 # 8
 # 13
 # 21
-# 34    
+# 34
+# EXPECT END

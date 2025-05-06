@@ -14,6 +14,9 @@ while(a < 100):
         c = c + c
 
 
+# EXPECT: 100
 print a
+# EXPECT: 96
 print c
+# EXPECT: 999999
 print d

@@ -16,23 +16,45 @@ INDENT = "    "
 # Settings
 EXECUTABLE = "./build/cryton"
 TEST_DIR = "tests"
-EXPECTED_OUTPUT_DIR = os.path.join(TEST_DIR, "expected_outputs")
 
 def format_block(header, content):
     print(f"{INDENT}{CYAN}{header}:{RESET}")
     print(textwrap.indent(content, INDENT * 2))
 
-def run_test(test_file, expected_file):
+
+def extract_expected_output(test_file):
+    expected_lines = []
+    in_block = False
+    with open(test_file, 'r') as f:
+        for line in f:
+            stripped = line.strip()
+            if stripped == "# EXPECT START":
+                in_block = True
+                continue
+            elif stripped == "# EXPECT END":
+                in_block = False
+                continue
+            elif stripped.startswith("# EXPECT:") and not in_block:
+                expected_lines.append(stripped[len("# EXPECT:"):].strip())
+            elif in_block and stripped.startswith("#"):
+                expected_lines.append(stripped[1:].lstrip())
+    return "\n".join(expected_lines)
+
+
+def run_test(test_file):
+    expected_output = extract_expected_output(test_file)
+    if not expected_output:
+        print(f"{YELLOW}[SKIPPED]{RESET} {os.path.basename(test_file)} — no EXPECT comment found.")
+        return None
+
     try:
         result = subprocess.run([EXECUTABLE, test_file], capture_output=True, text=True, timeout=5)
     except subprocess.TimeoutExpired:
         print(f"{RED}[TIMEOUT]{RESET} {os.path.basename(test_file)}")
         return False
 
-    with open(expected_file, 'r') as f:
-        expected_output = f.read().strip().replace('\r\n', '\n')
-
     actual_output = result.stdout.strip().replace('\r\n', '\n')
+    expected_output = expected_output.strip().replace('\r\n', '\n')
 
     if actual_output == expected_output:
         print(f"{GREEN}[PASS]{RESET} {os.path.basename(test_file)}")
@@ -45,6 +67,7 @@ def run_test(test_file, expected_file):
             format_block("Error output", result.stderr.strip())
         return False
 
+
 def main():
     total = 0
     passed = 0
@@ -53,20 +76,18 @@ def main():
     for filename in os.listdir(TEST_DIR):
         if filename.endswith(".py"):
             test_file = os.path.join(TEST_DIR, filename)
-            expected_file = os.path.join(EXPECTED_OUTPUT_DIR, filename.replace(".py", ".out"))
+            result = run_test(test_file)
+            if result is None:
+                continue  # Skipped
             total += 1
-            if os.path.exists(expected_file):
-                if run_test(test_file, expected_file):
-                    passed += 1
-                else:
-                    failed += 1
+            if result:
+                passed += 1
             else:
-                print(f"{YELLOW}[MISSING]{RESET} {filename} — expected output file not found.")
-                failed += 1  # Count missing output as a failed test
+                failed += 1
 
     print(f"\n{CYAN}{passed}/{total} tests passed, {failed} failed.{RESET}")
-
     sys.exit(1 if failed else 0)
+
 
 if __name__ == "__main__":
     main()

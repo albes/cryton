@@ -14,5 +14,5 @@ while(a < 100):
     a = a + 1
 
 
+# EXPECT: 100
 print a
-#Output 100
