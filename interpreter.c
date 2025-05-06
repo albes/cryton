@@ -24,10 +24,10 @@ BigInt interpretBinary(ExprBinary* expr) {
     BigInt zero = bigint_from_int(0);
     
     switch (expr->operator) {
-        case TOKEN_PLUS        : bigint_add(&result, &left, &right); break;// interpretExpr(expr->left) +  interpretExpr(expr->right);
-        case TOKEN_MINUS       : bigint_sub(&result, &left, &right); break;// interpretExpr(expr->left) -  interpretExpr(expr->right);
-        case TOKEN_LESS        : bigint_init(&result, bigint_abs_compare(&left, &right) < 0); break;// interpretExpr(expr->left) <  interpretExpr(expr->right);
-        case TOKEN_GREATER     : bigint_init(&result, bigint_abs_compare(&left, &right) > 0); break;//interpretExpr(expr->left) >  interpretExpr(expr->right);
+        case TOKEN_PLUS        : bigint_add(&result, &left, &right); break;
+        case TOKEN_MINUS       : bigint_sub(&result, &left, &right); break;
+        case TOKEN_LESS        : bigint_init(&result, bigint_abs_compare(&left, &right) < 0); break;
+        case TOKEN_GREATER     : bigint_init(&result, bigint_abs_compare(&left, &right) > 0); break;
         case TOKEN_EQUAL_EQUAL : bigint_init(&result, bigint_abs_compare(&left, &right) == 0); break;
         case TOKEN_BANG_EQUAL  : bigint_init(&result, bigint_abs_compare(&left, &right) != 0); break;
         case TOKEN_AND         : bigint_init(&result, bigint_abs_compare(&left, &zero) != 0
@@ -144,31 +144,6 @@ bool isMorphismInCategory(RuntimeCategory* cat, BigInt* from, BigInt* to) {
 
     return dfs(cat, from, to, visited, count);
 }
-
-//InterpretIn only for objects in category
-// BigInt interpretIn(ExprIn* expr) {
-//     BigInt obj = interpretExpr(expr->element);  // e.g., 5
-//     BigInt catNameVal = interpretExpr((Expr*)expr->name);
-
-//     // Validate category name is a variable (a string-like representation)
-//     if (expr->name->type != EXPR_VAR) {
-//         fprintf(stderr, "Right-hand side of 'in' must be a category name.\n");
-//         return bigint_from_int(0);
-//     }
-
-//     ObjString* name = ((ExprVar*)expr->name)->name;
-//     RuntimeCategory* cat = getCategoryByName(name);
-//     if (cat == NULL) {
-//         fprintf(stderr, "Undefined category '%.*s'\n", name->length, name->chars);
-//         return bigint_from_int(0);
-//     }
-
-//     if (isObjectInCategory(cat, &obj)) {
-//         return bigint_from_int(1);
-//     } else {
-//         return bigint_from_int(0);
-//     }
-// }
 
 BigInt interpretIn(ExprIn* expr) {
     if (expr->name->type != EXPR_VAR) {
