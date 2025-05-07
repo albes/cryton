@@ -164,20 +164,20 @@ void interpretCategory(StmtCat* cat) {
     runtimeCat->objects.count = cat->objects.count;
     runtimeCat->objects.values = malloc(sizeof(Value) * cat->objects.count);
     for (int i = 0; i < cat->objects.count; i++) {
-        runtimeCat->objects.values[i] = cat->objects.values[i];
+        runtimeCat->objects.values[i] = interpretExpr(cat->objects.values[i]);
     }
 
     runtimeCat->homset.count = cat->homset.count;
     runtimeCat->homset.morphisms = malloc(sizeof(Morphism) * cat->homset.count);
     for (int i = 0; i < cat->homset.count; i++) {
         Morphism* dest = &runtimeCat->homset.morphisms[i];
-        Morphism* src = &cat->homset.morphisms[i];
+        ExprAdjMorphisms* src = &cat->homset.morphisms[i];
 
-        dest->from = src->from;
+        dest->from = interpretExpr(src->from);
         dest->toCount = src->toCount;
         dest->to = malloc(sizeof(BigInt) * src->toCount);
         for (int j = 0; j < src->toCount; j++) {
-            dest->to[j] = src->to[j];
+            dest->to[j] = interpretExpr(src->to[j]);
         }
     }
 

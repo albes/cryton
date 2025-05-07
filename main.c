@@ -157,7 +157,7 @@ static void printStmtCat(StmtCat* stmt) {
 
     for(int i = 0; i < (stmt->objects.count); ++i) {
         printf("      ");
-        bigint_print(&stmt->objects.values[i]);
+        printExpr(stmt->objects.values[i]);
         putchar('\n');
     }
     
@@ -165,12 +165,12 @@ static void printStmtCat(StmtCat* stmt) {
     printf("   Homset\n");
     for(int i = 0; i < (stmt->homset.count); ++i) {
         printf("      ");
-        Morphism* morphism = &stmt->homset.morphisms[i];
-        bigint_print(&morphism->from);
+        ExprAdjMorphisms* morphism = &stmt->homset.morphisms[i];
+        printExpr(morphism->from);
         printf(" -> ");
 
         for(int j = 0; j < (morphism->toCount); ++j) {
-            bigint_print(&morphism->to[j]);
+            printExpr(morphism->to[j]);
             putchar(' ');
         }
 

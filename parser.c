@@ -357,44 +357,25 @@ static void synchronize() {
     }
 }
 
-static BigInt parseObject() {
-    int sign = 1;
-
-    if (match(TOKEN_MINUS)) {
-        sign = -1;
-    }
-
-    if (parser.current.type != TOKEN_NUMBER) {
-        errorAtCurrent("Expect NUMBER.");
-        return bigint_from_int(0);
-    }
-
-    BigInt obj = bigint_from_str(parser.current.start, parser.current.length);
-    obj.sign = sign;
-    
-    advance();
-
-    return obj;
+static bool isTermStart(TokenType type) {
+    return type == TOKEN_NUMBER ||
+           type == TOKEN_IDENTIFIER ||
+           type == TOKEN_LEFT_PAREN ||
+           type == TOKEN_MINUS;
 }
 
-static void parseObjectSequence(BigInt** list, int* outCount, bool allow_newlines) {
+static void parseObjectSequence(Expr*** list, int* outCount, bool allow_newlines) {
     int capacity = 8;
     int count = 0;
-    BigInt* values = malloc(sizeof(BigInt) * capacity);
+    Expr** values = malloc(sizeof(Expr*) * capacity);
 
-    if (parser.current.type != TOKEN_NUMBER &&
-           parser.current.type != TOKEN_MINUS) {
-        
-        errorAtCurrent("Morphisms should point to at least one object");
-    }
-    while (parser.current.type == TOKEN_NUMBER ||
-           parser.current.type == TOKEN_MINUS) {
+    while (isTermStart(parser.current.type)) {
         if (count >= capacity) {
             capacity *= 2;
-            values = realloc(values, sizeof(BigInt) * capacity);
+            values = realloc(values, sizeof(Expr*) * capacity);
         }
 
-        values[count++] = parseObject();
+        values[count++] = term();
 
         if (allow_newlines && parser.current.type == TOKEN_NEWLINE) {
             advance();
@@ -405,30 +386,32 @@ static void parseObjectSequence(BigInt** list, int* outCount, bool allow_newline
     *list = values;
 }
 
-Morphism parseMorphism() {
-    Morphism m;
-    m.from = parseObject();
+
+
+ExprAdjMorphisms parseMorphism() {
+    ExprAdjMorphisms morph;
+    morph.from = term();
+
     consume(TOKEN_ARROW, "Expect '->' in morphism.");
+    parseObjectSequence(&morph.to, &morph.toCount, false);
 
-    parseObjectSequence(&m.to, &m.toCount, false);
     consume(TOKEN_NEWLINE, "Expect NEWLINE after morphism.");
-
-    return m;
+    return morph;
 }
 
-void parseHomset(HomSet* homset) {
-    int capacity = 8; // start small, grow as needed
-    homset->morphisms = malloc(sizeof(Morphism) * capacity);
+void parseHomset(ExprHomSet* homset) {
+    int capacity = 8;
+    homset->morphisms = malloc(sizeof(ExprAdjMorphisms) * capacity);
     homset->count = 0;
 
     consume(TOKEN_NEWLINE, "Expect NEWLINE after 'hom'.");
 
     if (match(TOKEN_INDENT)) {
-        while (parser.current.type == TOKEN_NUMBER ||
-               parser.current.type == TOKEN_MINUS) {
+        while (parser.current.type != TOKEN_DEDENT &&
+               parser.current.type != TOKEN_EOF) {
             if (homset->count >= capacity) {
                 capacity *= 2;
-                homset->morphisms = realloc(homset->morphisms, sizeof(Morphism) * capacity);
+                homset->morphisms = realloc(homset->morphisms, sizeof(ExprAdjMorphisms) * capacity);
             }
 
             homset->morphisms[homset->count++] = parseMorphism();
@@ -437,8 +420,7 @@ void parseHomset(HomSet* homset) {
     }
 }
 
-
-void parseObjects(ObjectList* objects) {
+void parseObjects(ExprObjects* objects) {
     consume(TOKEN_NEWLINE, "Expect NEWLINE before object list.");
     consume(TOKEN_INDENT, "Expect INDENT before object list.");
 
@@ -446,7 +428,7 @@ void parseObjects(ObjectList* objects) {
     consume(TOKEN_DEDENT, "Expect DEDENT after object list.");
 }
 
-void parseCategoryBlock(ObjectList* objects, HomSet* homset) {
+void parseCategoryBlock(ExprObjects* objects, ExprHomSet* homset) {
     consume(TOKEN_NEWLINE, "Expect NEWLINE before category block.");
     consume(TOKEN_INDENT, "Expect INDENT before category block.");
 
@@ -463,7 +445,7 @@ void parseCategoryBlock(ObjectList* objects, HomSet* homset) {
     consume(TOKEN_DEDENT, "Expect DEDENT after category block.");
 }
 
-StmtCat* makeStmtCat(ObjString* name, ObjectList objects, HomSet homset) {
+StmtCat* makeStmtCat(ObjString* name, ExprObjects objects, ExprHomSet homset) {
     StmtCat* stmt = malloc(sizeof(StmtCat));
     stmt->stmt.type = STMT_CAT;
     stmt->stmt.next = NULL;
@@ -473,19 +455,19 @@ StmtCat* makeStmtCat(ObjString* name, ObjectList objects, HomSet homset) {
     return stmt;
 }
 
-
 Stmt* catStmt() {
     consume(TOKEN_IDENTIFIER, "Expect category name after 'cat'.");
     ObjString* name = copyString(parser.previous.start, parser.previous.length);
 
     consume(TOKEN_COLON, "Expect ':' after category name.");
 
-    ObjectList objects;
-    HomSet homset;
+    ExprObjects objects;
+    ExprHomSet homset;
     parseCategoryBlock(&objects, &homset);
 
     return (Stmt*)makeStmtCat(name, objects, homset);
 }
+
 
 static Stmt* statement() {
     if (parser.panicMode)
@@ -586,27 +568,23 @@ static void freeStmtWhile(StmtWhile* stmt) {
 }
 
 static void freeStmtCat(StmtCat* stmt) {
-
-    // Free object list
-    if (stmt->objects.values != NULL) {
-        free(stmt->objects.values);
+    for (int i = 0; i < stmt->objects.count; i++) {
+        freeExpr(stmt->objects.values[i]);
     }
+    free(stmt->objects.values);
 
-    // Free morphism targets
     for (int i = 0; i < stmt->homset.count; i++) {
-        if (stmt->homset.morphisms[i].to != NULL) {
-            free(stmt->homset.morphisms[i].to);
+        freeExpr(stmt->homset.morphisms[i].from);
+        for (int j = 0; j < stmt->homset.morphisms[i].toCount; j++) {
+            freeExpr(stmt->homset.morphisms[i].to[j]);
         }
+        free(stmt->homset.morphisms[i].to);
     }
 
-    // Free morphism array
-    if (stmt->homset.morphisms != NULL) {
-        free(stmt->homset.morphisms);
-    }
-
-    // Free the stmt itself
+    free(stmt->homset.morphisms);
     free(stmt);
 }
+
 
 
 void freeAST(Stmt* stmts) {

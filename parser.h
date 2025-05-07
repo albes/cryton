@@ -77,12 +77,27 @@ typedef struct {
     Stmt* body;
 } StmtWhile;
 
+typedef struct {
+    Expr** values;
+    int count;
+} ExprObjects;
+
+typedef struct {
+    Expr* from;
+    Expr** to;
+    int toCount;
+} ExprAdjMorphisms;
+
+typedef struct {
+    ExprAdjMorphisms* morphisms;
+    int count;
+} ExprHomSet;
 
 typedef struct {
     Stmt stmt;
     ObjString* name;
-    ObjectList objects;
-    HomSet homset;
+    ExprObjects objects;
+    ExprHomSet homset;
 } StmtCat;
 
 bool parse(const char* source, Stmt** stmts);
