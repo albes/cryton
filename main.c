@@ -116,6 +116,16 @@ static void printExpr(Expr* expr) {
         printf(" V\n");
         printExpr(e->to);
 
+    } else if (expr->type == EXPR_CAT_INIT) {
+        ExprCatInit* e = (ExprCatInit*)expr;
+
+        printf("Category Constructor Call:\n");
+        printf("  %.*s(", e->callee->length, e->callee->chars);
+        for (int i = 0; i < e->argCount; i++) {
+            printExpr(e->args[i]);
+            if (i < e->argCount - 1) printf(", ");
+        }
+        printf(")\n");
     } else {
         printf("Unknown expr\n");
     }
@@ -165,7 +175,7 @@ static void printStmtCat(StmtCat* stmt) {
     printf("   Homset\n");
     for(int i = 0; i < (stmt->homset.count); ++i) {
         printf("      ");
-        ExprAdjMorphisms* morphism = &stmt->homset.morphisms[i];
+        TmplAdjMorphisms* morphism = &stmt->homset.morphisms[i];
         printExpr(morphism->from);
         printf(" -> ");
 
@@ -216,7 +226,7 @@ static void runFile(const char* path, bool debug) {
     if (debug) {
         printStmt(stmts);
     } else {
-        interpret(stmts);
+        runInterp(stmts);
     }
 
     freeAST(stmts);
@@ -256,7 +266,7 @@ static void repl() {
         if (*head != '\0') {
             Stmt* stmts;
             if (parse(line, &stmts)) {
-                interpret(stmts);
+                runInterp(stmts);
             }
             freeAST(stmts);
         }
@@ -316,7 +326,7 @@ static void repl() {
                 Stmt* stmts;
 
                 if (parse(line, &stmts)) {
-                    interpret(stmts);
+                    runInterp(stmts);
                 }
                 freeAST(stmts);
             }

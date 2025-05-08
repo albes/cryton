@@ -25,8 +25,6 @@ typedef struct {
 
 void initInterp();
 void freeInterp();
-BigInt interpretExpr(Expr* expr);
-void interpretStmt(Stmt* stmt);
-void interpret(Stmt* stmts);
+void runInterp(Stmt* stmts);
 
 #endif

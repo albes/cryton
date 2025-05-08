@@ -43,6 +43,11 @@ void freeCategory(RuntimeCategory* cat) {
     free(cat);
 }
 
+void freeTemplate(CategoryTemplate* templ) {
+    if (templ == NULL) return;
+    
+    free(templ);
+}
 
 // Free table and all contained strings
 void freeTable(Table* table) {
@@ -55,6 +60,9 @@ void freeTable(Table* table) {
         freeString(entry->key);  // Clean key
         if (entry->value.type == VALUE_CATEGORY && entry->value.category != NULL) {
             freeCategory(entry->value.category);
+        }
+        else if (entry->value.type == VALUE_CAT_TEMPLATE && entry->value.template != NULL) {
+            freeTemplate(entry->value.template);
         }
     }
 }
@@ -127,9 +135,14 @@ bool tableSet(Table* table, ObjString* key, Value value) {
     Entry* entry = findEntry(table->entries, table->capacity, key);
     bool isNewKey = entry->key == NULL;
 
-    if(!isNewKey && entry->value.type == VALUE_CATEGORY) {
-        freeCategory(entry->value.category);
+    if (!isNewKey) {
+        if (entry->value.type == VALUE_CATEGORY && entry->value.category != NULL) {
+            freeCategory(entry->value.category);
+        } else if (entry->value.type == VALUE_CAT_TEMPLATE && entry->value.template != NULL) {
+            freeTemplate(entry->value.template);
+        }
     }
+    
     
     if (isNewKey && entry->value.type == VALUE_NULL)
         table->count++;

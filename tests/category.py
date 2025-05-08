@@ -17,27 +17,32 @@ cat p:
         b -> c
 
 
-if 65 -> 5 in p:
+categ = p(a b c)
+
+a = 41234
+b = 51231
+c = 61234
+gg = p(a b c)
+
+if 65 -> 5 in categ:
     print(1)
 else:
     print(0)
 
 # EXPECT: 1
 
-print(1 -> 2 in p)
+print(41234 -> 41235 in gg)
 # EXPECT: 1
 
 
-print(1 -> 5555 in p)
+print(1 -> 5555 in categ)
 # EXPECT: 0
 
-print(-3 in p)
+print(-3 in categ)
 # EXPECT: 1
-print(-4 in p)
+print(-4 in categ)
 # EXPECT: 1
-print(-9 in p)
+print(-9 in categ)
 # EXPECT: 0
-print(-5789654123 in p)
+print(-5789654123 in categ)
 # EXPECT: 1
-
-
