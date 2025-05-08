@@ -5,6 +5,9 @@
 #include "table.h"
 #include "interpreter.h"
 
+BigInt interpretExpr(Expr* expr);
+void interpret(Stmt* stmts);
+
 Interp interp;
 
 void runtimeError(const char* format, ...) {
@@ -318,11 +321,15 @@ void interpretStmt(Stmt* stmt) {
 }
 
 void interpret(Stmt* stmts) {
+    while (stmts != NULL) {
+        interpretStmt(stmts);
+        stmts = stmts->next;
+    }
+}
+
+void runInterp(Stmt* stmts) {
     if (setjmp(interp.errJmpBuf) == 0) {
-        while (stmts != NULL) {
-            interpretStmt(stmts);
-            stmts = stmts->next;
-        }
+        interpret(stmts);
     } else {
         // Jumped here from runtimeError
         fprintf(stderr, "Runtime error occurred. Aborting interpretation.\n");

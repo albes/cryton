@@ -226,7 +226,7 @@ static void runFile(const char* path, bool debug) {
     if (debug) {
         printStmt(stmts);
     } else {
-        interpret(stmts);
+        runInterp(stmts);
     }
 
     freeAST(stmts);
@@ -266,7 +266,7 @@ static void repl() {
         if (*head != '\0') {
             Stmt* stmts;
             if (parse(line, &stmts)) {
-                interpret(stmts);
+                runInterp(stmts);
             }
             freeAST(stmts);
         }
@@ -326,7 +326,7 @@ static void repl() {
                 Stmt* stmts;
 
                 if (parse(line, &stmts)) {
-                    interpret(stmts);
+                    runInterp(stmts);
                 }
                 freeAST(stmts);
             }
