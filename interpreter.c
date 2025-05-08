@@ -155,11 +155,20 @@ BigInt interpretIn(ExprIn* expr) {
         BigInt obj = interpretExpr(expr->element);
         return bigint_from_int(isObjectInCategory(cat, &obj));
     }
+
+    // bigint_from_int(0);
 }
 
-void interpretCategory(StmtCat* cat) {
+void interpretCategory(ExprCatInit* expr, ObjString* varName) {
+
+    Value tmplVal;
+    if (!tableGet(&interp.strings, expr->callee, &tmplVal) || tmplVal.type != VALUE_CAT_TEMPLATE) {
+        runtimeError("'%.*s' is not a category template.", expr->callee->length, expr->callee->chars);
+    }
+
+    CategoryTemplate* cat = tmplVal.template;
     RuntimeCategory* runtimeCat = malloc(sizeof(RuntimeCategory));
-    runtimeCat->name = cat->name;
+    runtimeCat->name = varName;
 
     runtimeCat->objects.count = cat->objects.count;
     runtimeCat->objects.values = malloc(sizeof(Value) * cat->objects.count);
@@ -171,7 +180,7 @@ void interpretCategory(StmtCat* cat) {
     runtimeCat->homset.morphisms = malloc(sizeof(Morphism) * cat->homset.count);
     for (int i = 0; i < cat->homset.count; i++) {
         Morphism* dest = &runtimeCat->homset.morphisms[i];
-        ExprAdjMorphisms* src = &cat->homset.morphisms[i];
+        TmplAdjMorphisms* src = &cat->homset.morphisms[i];
 
         dest->from = interpretExpr(src->from);
         dest->toCount = src->toCount;
@@ -182,6 +191,20 @@ void interpretCategory(StmtCat* cat) {
     }
 
     saveCategory(runtimeCat);
+}
+
+void interpretCategoryTemplate(StmtCat* cat) {
+    CategoryTemplate* templ = malloc(sizeof(CategoryTemplate));
+    templ->name = cat->name;
+    templ->objects = cat->objects;
+    templ->homset = cat->homset;
+
+    Value val = {
+        .type = VALUE_CAT_TEMPLATE,
+        .template = templ
+    };
+
+    tableSet(&interp.strings, templ->name, val);
 }
 
 BigInt interpretNumber(ExprNumber* expr) {
@@ -201,6 +224,30 @@ BigInt interpretVar(ExprVar* expr) {
     return val.number;
 }
 
+// BigInt interpretCatInit(ExprCatInit* expr) {
+//     RuntimeCategory* cat = getCategoryByName(expr->callee);
+//     if (!cat) {
+//         runtimeError("Category constructor '%.*s' is not defined.",
+//                      expr->callee->length, expr->callee->chars);
+//     }
+
+//     if (expr->argCount != cat->objects.count) {
+//         runtimeError("Category '%.*s' expects %d arguments, got %d.",
+//                      expr->callee->length, expr->callee->chars,
+//                      cat->objects.count, expr->argCount);
+//     }
+
+//     // We don't define what a category constructor should *return*.
+//     // For now, let's just say it's valid and return `1`.
+//     // You could create a `RuntimeInstance` and return a reference in the future.
+
+//     for (int i = 0; i < expr->argCount; i++) {
+//         (void) interpretExpr(expr->args[i]);  // For now, just evaluate them
+//     }
+
+//     return bigint_from_int(1);
+// }
+
 BigInt interpretExpr(Expr* expr) {
     switch (expr->type) {
         case EXPR_BINARY : return interpretBinary((ExprBinary*)expr);
@@ -208,6 +255,7 @@ BigInt interpretExpr(Expr* expr) {
         case EXPR_NUMBER : return interpretNumber((ExprNumber*)expr);
         case EXPR_VAR    : return interpretVar((ExprVar*)expr);
         case EXPR_IN     : return interpretIn((ExprIn*)expr);
+        // case EXPR_CAT_INIT: return interpretCatInit((ExprCatInit*)expr);
     }
     return bigint_from_int(0);
 }
@@ -215,9 +263,19 @@ BigInt interpretExpr(Expr* expr) {
 void interpretAssign(StmtAssign* stmt) {
     ExprVar* exprVar = (ExprVar*)stmt->left;
     ObjString* varName = exprVar->name;
-    BigInt number = interpretExpr(stmt->right);
-    Value val = { .type = VALUE_NUMBER, .number = number };
-    tableSet(&interp.strings, varName, val);
+
+    Value val;
+
+    if (stmt->right->type == EXPR_CAT_INIT) {
+        ExprCatInit* init = (ExprCatInit*)stmt->right;
+        
+        interpretCategory(init, varName);
+    } else {
+        BigInt number = interpretExpr(stmt->right);
+        val.type = VALUE_NUMBER;
+        val.number = number;
+        tableSet(&interp.strings, varName, val);
+    }
 }
 
 void interpretPrint(StmtPrint* stmt) {
@@ -255,7 +313,7 @@ void interpretStmt(Stmt* stmt) {
         case STMT_PRINT : interpretPrint((StmtPrint*)stmt); break;
         case STMT_IF    : interpretIf((StmtIf*)stmt); break;
         case STMT_WHILE : interpretWhile((StmtWhile*)stmt); break;
-        case STMT_CAT   : interpretCategory((StmtCat*)stmt); break;
+        case STMT_CAT   : interpretCategoryTemplate((StmtCat*)stmt); break;
     }
 }
 

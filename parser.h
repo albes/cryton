@@ -8,11 +8,12 @@
 typedef enum {
     EXPR_BINARY, EXPR_UNARY,
     EXPR_NUMBER, EXPR_VAR,
-    EXPR_IN, EXPR_MORPHISM
+    EXPR_IN, EXPR_MORPHISM,
+    EXPR_CAT_INIT
 } ExprType;
 
 
-typedef struct {
+typedef struct Expr{
     ExprType type;
 } Expr;
 
@@ -54,6 +55,13 @@ struct Stmt {
 };
 
 typedef struct {
+    Expr expr;
+    ObjString* callee;   // name of the category (e.g. p)
+    Expr** args;       // arguments like (a + 1), 5, etc.
+    int argCount;
+} ExprCatInit;
+
+typedef struct {
     Stmt stmt;
     ExprVar* left;
     Expr* right;
@@ -78,26 +86,10 @@ typedef struct {
 } StmtWhile;
 
 typedef struct {
-    Expr** values;
-    int count;
-} ExprObjects;
-
-typedef struct {
-    Expr* from;
-    Expr** to;
-    int toCount;
-} ExprAdjMorphisms;
-
-typedef struct {
-    ExprAdjMorphisms* morphisms;
-    int count;
-} ExprHomSet;
-
-typedef struct {
     Stmt stmt;
     ObjString* name;
-    ExprObjects objects;
-    ExprHomSet homset;
+    TmplObjects objects;
+    TmplHomSet homset;
 } StmtCat;
 
 bool parse(const char* source, Stmt** stmts);

@@ -43,6 +43,41 @@ void freeCategory(RuntimeCategory* cat) {
     free(cat);
 }
 
+void freeTemplate(CategoryTemplate* templ) {
+    if (templ == NULL) return;
+
+    // // Free each Expr* in objects
+    // for (int i = 0; i < templ->objects.count; i++) {
+    //     if (templ->objects.values[i]) {
+    //         freeExpr(templ->objects.values[i]);
+    //     }
+    // }
+    // free(templ->objects.values);
+    // templ->objects.values = NULL;
+
+    // // Free each morphism and its Expr* parts
+    // for (int i = 0; i < templ->homset.count; i++) {
+    //     TmplAdjMorphisms* m = &templ->homset.morphisms[i];
+
+    //     if (m->from) {
+    //         freeExpr(m->from);
+    //     }
+
+    //     for (int j = 0; j < m->toCount; j++) {
+    //         if (m->to[j]) {
+    //             freeExpr(m->to[j]);
+    //         }
+    //     }
+
+    //     free(m->to);
+    //     m->to = NULL;
+    // }
+
+    // free(templ->homset.morphisms);
+    // templ->homset.morphisms = NULL;
+
+    free(templ);
+}
 
 // Free table and all contained strings
 void freeTable(Table* table) {
@@ -56,6 +91,9 @@ void freeTable(Table* table) {
         if (entry->value.type == VALUE_CATEGORY && entry->value.category != NULL) {
             freeCategory(entry->value.category);
         }
+        // else if (entry->value.type == VALUE_CAT_TEMPLATE && entry->value.template != NULL) {
+        //     freeTemplate(entry->value.template);
+        // }
     }
 }
 
@@ -127,9 +165,14 @@ bool tableSet(Table* table, ObjString* key, Value value) {
     Entry* entry = findEntry(table->entries, table->capacity, key);
     bool isNewKey = entry->key == NULL;
 
-    if(!isNewKey && entry->value.type == VALUE_CATEGORY) {
-        freeCategory(entry->value.category);
+    if (!isNewKey) {
+        if (entry->value.type == VALUE_CATEGORY && entry->value.category != NULL) {
+            freeCategory(entry->value.category);
+        } else if (entry->value.type == VALUE_CAT_TEMPLATE && entry->value.template != NULL) {
+            freeTemplate(entry->value.template);
+        }
     }
+    
     
     if (isNewKey && entry->value.type == VALUE_NULL)
         table->count++;
