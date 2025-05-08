@@ -20,6 +20,21 @@ void runtimeError(const char* format, ...) {
     longjmp(interp.errJmpBuf, 1);
 }
 
+const char* typeName(ValueType type) {
+    switch (type) {
+        case VALUE_CAT_TEMPLATE:
+            return "Category Template";
+        case VALUE_CATEGORY:
+            return "Category";
+        case VALUE_NULL:
+            return "Null";
+        case VALUE_NUMBER:
+            return "Number";
+        default:
+            return "Unknown";
+    }
+}
+
 void initInterp() {
     initTable(&interp.strings);
 }
@@ -79,7 +94,10 @@ RuntimeCategory* getCategoryByName(ObjString* name) {
     Value val;
     if (tableGet(&interp.strings, name, &val) && val.type == VALUE_CATEGORY) {
         return val.category;
+    } else {
+        runtimeError("Expected an expression of type category, but got '%s'.", typeName(val.type));
     }
+
     return NULL;
 }
 
@@ -139,14 +157,11 @@ bool isMorphismInCategory(RuntimeCategory* cat, BigInt* from, BigInt* to) {
 
 BigInt interpretIn(ExprIn* expr) {
     if (expr->name->type != EXPR_VAR) {
-        runtimeError("'in' expects a category name on the right.");
+        runtimeError("'in' expects a variable of type 'Category' after 'in'.");
     }
 
     ObjString* name = ((ExprVar*)expr->name)->name;
     RuntimeCategory* cat = getCategoryByName(name);
-    if (!cat) {
-        runtimeError("Undefined category '%.*s'", name->length, name->chars);
-    }
 
     if (expr->element->type == EXPR_MORPHISM) {
         ExprMorphism* morph = (ExprMorphism*)expr->element;
@@ -166,7 +181,7 @@ void interpretCategory(ExprCatInit* expr, ObjString* varName) {
 
     Value tmplVal;
     if (!tableGet(&interp.strings, expr->callee, &tmplVal) || tmplVal.type != VALUE_CAT_TEMPLATE) {
-        runtimeError("'%.*s' is not a category template.", expr->callee->length, expr->callee->chars);
+        runtimeError("Expected a variable of type 'Category Template', but got '%.*s' of type '%s'.", expr->callee->length, expr->callee->chars, typeName(tmplVal.type));
     }
 
     CategoryTemplate* cat = tmplVal.template;
@@ -217,39 +232,18 @@ BigInt interpretNumber(ExprNumber* expr) {
 BigInt interpretVar(ExprVar* expr) {
     Value val;
     if (!tableGet(&interp.strings, expr->name, &val) || val.type == VALUE_NULL) {
-        runtimeError("Undefined variable '%.*s'", expr->name->length, expr->name->chars);
+        runtimeError("Undefined variable '%.*s'.", expr->name->length, expr->name->chars);
     }
 
     if (val.type != VALUE_NUMBER) {
-        runtimeError("'%.*s' is not a variable.", expr->name->length, expr->name->chars);
+        const char* typeStr;
+    
+        runtimeError("Cannot assign variable '%.*s' of type '%s'.",
+                     expr->name->length, expr->name->chars, typeName(val.type));
     }
-
+    
     return val.number;
 }
-
-// BigInt interpretCatInit(ExprCatInit* expr) {
-//     RuntimeCategory* cat = getCategoryByName(expr->callee);
-//     if (!cat) {
-//         runtimeError("Category constructor '%.*s' is not defined.",
-//                      expr->callee->length, expr->callee->chars);
-//     }
-
-//     if (expr->argCount != cat->objects.count) {
-//         runtimeError("Category '%.*s' expects %d arguments, got %d.",
-//                      expr->callee->length, expr->callee->chars,
-//                      cat->objects.count, expr->argCount);
-//     }
-
-//     // We don't define what a category constructor should *return*.
-//     // For now, let's just say it's valid and return `1`.
-//     // You could create a `RuntimeInstance` and return a reference in the future.
-
-//     for (int i = 0; i < expr->argCount; i++) {
-//         (void) interpretExpr(expr->args[i]);  // For now, just evaluate them
-//     }
-
-//     return bigint_from_int(1);
-// }
 
 BigInt interpretExpr(Expr* expr) {
     switch (expr->type) {
@@ -258,7 +252,6 @@ BigInt interpretExpr(Expr* expr) {
         case EXPR_NUMBER : return interpretNumber((ExprNumber*)expr);
         case EXPR_VAR    : return interpretVar((ExprVar*)expr);
         case EXPR_IN     : return interpretIn((ExprIn*)expr);
-        // case EXPR_CAT_INIT: return interpretCatInit((ExprCatInit*)expr);
     }
     return bigint_from_int(0);
 }
