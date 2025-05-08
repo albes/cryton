@@ -45,37 +45,7 @@ void freeCategory(RuntimeCategory* cat) {
 
 void freeTemplate(CategoryTemplate* templ) {
     if (templ == NULL) return;
-
-    // // Free each Expr* in objects
-    // for (int i = 0; i < templ->objects.count; i++) {
-    //     if (templ->objects.values[i]) {
-    //         freeExpr(templ->objects.values[i]);
-    //     }
-    // }
-    // free(templ->objects.values);
-    // templ->objects.values = NULL;
-
-    // // Free each morphism and its Expr* parts
-    // for (int i = 0; i < templ->homset.count; i++) {
-    //     TmplAdjMorphisms* m = &templ->homset.morphisms[i];
-
-    //     if (m->from) {
-    //         freeExpr(m->from);
-    //     }
-
-    //     for (int j = 0; j < m->toCount; j++) {
-    //         if (m->to[j]) {
-    //             freeExpr(m->to[j]);
-    //         }
-    //     }
-
-    //     free(m->to);
-    //     m->to = NULL;
-    // }
-
-    // free(templ->homset.morphisms);
-    // templ->homset.morphisms = NULL;
-
+    
     free(templ);
 }
 
@@ -91,9 +61,9 @@ void freeTable(Table* table) {
         if (entry->value.type == VALUE_CATEGORY && entry->value.category != NULL) {
             freeCategory(entry->value.category);
         }
-        // else if (entry->value.type == VALUE_CAT_TEMPLATE && entry->value.template != NULL) {
-        //     freeTemplate(entry->value.template);
-        // }
+        else if (entry->value.type == VALUE_CAT_TEMPLATE && entry->value.template != NULL) {
+            freeTemplate(entry->value.template);
+        }
     }
 }
 
