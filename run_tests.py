@@ -76,12 +76,12 @@ def run_valgrind(test_file):
     )
 
     if has_errors:
-        print(f"{RED}[MEMORY ERROR]{RESET} {os.path.basename(test_file)}")
+        print(f"{RED}[MEMORY ERROR]{RESET} {os.path.relpath(test_file, TEST_DIR)}")
         format_block("Valgrind Leak Summary", f"Definitely lost: {leaks['definitely lost']} bytes")
         format_block("Valgrind Output", stderr)
         return False
     else:
-        print(f"{GREEN}[MEMORY OK]{RESET} {os.path.basename(test_file)}")
+        print(f"{GREEN}[MEMORY OK]{RESET} {os.path.relpath(test_file, TEST_DIR)}")
         return True
 
 
@@ -91,23 +91,24 @@ def run_test(test_file):
 
     expected_output = extract_expected_output(test_file)
     if not expected_output:
-        print(f"{YELLOW}[SKIPPED]{RESET} {os.path.basename(test_file)} — no EXPECT comment found.")
+        print(f"{YELLOW}[SKIPPED]{RESET} {os.path.relpath(test_file, TEST_DIR)} — no EXPECT comment found.")
         return None
 
     result = subprocess.run([EXECUTABLE, test_file], capture_output=True, text=True, timeout=5)
 
     actual_output = result.stdout.strip().replace('\r\n', '\n')
     expected_output = expected_output.strip().replace('\r\n', '\n')
+    stderr_output = result.stderr.strip()
 
-    if actual_output == expected_output:
-        print(f"{GREEN}[PASS]{RESET} {os.path.basename(test_file)}")
+    if actual_output == expected_output and stderr_output == "":
+        print(f"{GREEN}[PASS]{RESET} {os.path.relpath(test_file, TEST_DIR)}")
         return True
     else:
-        print(f"{RED}[FAIL]{RESET} {os.path.basename(test_file)}")
+        print(f"{RED}[FAIL]{RESET} {os.path.relpath(test_file, TEST_DIR)}")
         format_block("Expected", expected_output)
         format_block("Got", actual_output)
-        if result.stderr.strip():
-            format_block("Error output", result.stderr.strip())
+        if stderr_output:
+            format_block("Error output", stderr_output)
         return False
 
 
@@ -116,17 +117,18 @@ def main():
     passed = 0
     failed = 0
 
-    for filename in sorted(os.listdir(TEST_DIR)):
-        if filename.endswith(".py"):
-            test_file = os.path.join(TEST_DIR, filename)
-            result = run_test(test_file)
-            if result is None:
-                continue
-            total += 1
-            if result:
-                passed += 1
-            else:
-                failed += 1
+    for root, _, files in os.walk(TEST_DIR):
+        for filename in sorted(files):
+            if filename.endswith(".py"):
+                test_file = os.path.join(root, filename)
+                result = run_test(test_file)
+                if result is None:
+                    continue
+                total += 1
+                if result:
+                    passed += 1
+                else:
+                    failed += 1
 
     mode_msg = "Memory check (Valgrind)" if VALGRIND_MODE else "Functional test"
     print(f"\n{CYAN}{mode_msg} result: {passed}/{total} passed, {failed} failed.{RESET}")

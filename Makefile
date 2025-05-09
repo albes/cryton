@@ -20,8 +20,7 @@ test-valgrind: cryton
 	python3 run_tests.py --valgrind
 
 test-all: cryton
-	python3 run_tests.py
-	python3 run_tests.py --valgrind
-	
+	@ (python3 run_tests.py | tail -1) && (python3 run_tests.py --valgrind | tail -1)
+
 clean:
 	rm -rf $(BUILD_DIR) $(CCOMP_DIR)

@@ -95,7 +95,7 @@ RuntimeCategory* getCategoryByName(ObjString* name) {
     if (tableGet(&interp.strings, name, &val) && val.type == VALUE_CATEGORY) {
         return val.category;
     } else {
-        runtimeError("Expected an expression of type category, but got '%s'.", typeName(val.type));
+        runtimeError("Expected a variable of type category after 'in', but got '%s'.", typeName(val.type));
     }
 
     return NULL;
@@ -157,7 +157,7 @@ bool isMorphismInCategory(RuntimeCategory* cat, BigInt* from, BigInt* to) {
 
 BigInt interpretIn(ExprIn* expr) {
     if (expr->name->type != EXPR_VAR) {
-        runtimeError("'in' expects a variable of type 'Category' after 'in'.");
+        runtimeError("Expected a variable of type after 'in'.");
     }
 
     ObjString* name = ((ExprVar*)expr->name)->name;
