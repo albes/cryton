@@ -161,32 +161,32 @@ static void printStmtWhile(StmtWhile* stmt) {
 }
 
 static void printStmtCat(StmtCat* stmt) {
-    printf("Category %s\n", stmt->name->chars);
+    printf("Category Template %s(", stmt->name->chars);
+    for (int i = 0; i < stmt->paramCount; ++i) {
+        printf("%s", stmt->params[i]->chars);
+        if (i < stmt->paramCount - 1) printf(" ");
+    }
+    printf(")\n");
 
     printf("   Objects\n");
-
-    for(int i = 0; i < (stmt->objects.count); ++i) {
+    for (int i = 0; i < stmt->objects.count; ++i) {
         printf("      ");
         printExpr(stmt->objects.values[i]);
-        putchar('\n');
+        // putchar('\n');
     }
-    
 
     printf("   Homset\n");
-    for(int i = 0; i < (stmt->homset.count); ++i) {
+    for (int i = 0; i < stmt->homset.count; ++i) {
         printf("      ");
         TmplAdjMorphisms* morphism = &stmt->homset.morphisms[i];
         printExpr(morphism->from);
         printf(" -> ");
-
-        for(int j = 0; j < (morphism->toCount); ++j) {
+        for (int j = 0; j < morphism->toCount; ++j) {
             printExpr(morphism->to[j]);
             putchar(' ');
         }
-
-        putchar('\n');
+        // putchar('\n');
     }
-    // printStmt(stmt->objects);
 }
 
 static void printStmt(Stmt* stmt) {

@@ -23,7 +23,9 @@ def format_block(header, content):
 
 def extract_expected_output(test_file):
     expected_lines = []
+    expected_error = None
     in_block = False
+
     with open(test_file, 'r') as f:
         for line in f:
             stripped = line.strip()
@@ -35,9 +37,12 @@ def extract_expected_output(test_file):
                 continue
             elif stripped.startswith("# EXPECT:") and not in_block:
                 expected_lines.append(stripped[len("# EXPECT:"):].strip())
+            elif stripped.startswith("# EXPECT ERROR:"):
+                expected_error = stripped[len("# EXPECT ERROR:"):].strip()
             elif in_block and stripped.startswith("#"):
                 expected_lines.append(stripped[1:].lstrip())
-    return "\n".join(expected_lines)
+
+    return "\n".join(expected_lines), expected_error
 
 
 def parse_valgrind_leaks(stderr_output):
@@ -89,17 +94,23 @@ def run_test(test_file):
     if VALGRIND_MODE:
         return run_valgrind(test_file)
 
-    expected_output = extract_expected_output(test_file)
-    if not expected_output:
-        print(f"{YELLOW}[SKIPPED]{RESET} {os.path.relpath(test_file, TEST_DIR)} — no EXPECT comment found.")
-        return None
+    expected_output, expected_error = extract_expected_output(test_file)
 
     result = subprocess.run([EXECUTABLE, test_file], capture_output=True, text=True, timeout=5)
-
     actual_output = result.stdout.strip().replace('\r\n', '\n')
-    expected_output = expected_output.strip().replace('\r\n', '\n')
     stderr_output = result.stderr.strip()
 
+    if expected_error:
+        if expected_error in stderr_output:
+            print(f"{GREEN}[EXPECTED ERROR]{RESET} {os.path.relpath(test_file, TEST_DIR)}")
+            return True
+        else:
+            print(f"{RED}[UNEXPECTED PASS/ERROR]{RESET} {os.path.relpath(test_file, TEST_DIR)}")
+            format_block("Expected error", expected_error)
+            format_block("Got", stderr_output or "(no error)")
+            return False
+
+    expected_output = expected_output.strip().replace('\r\n', '\n')
     if actual_output == expected_output and stderr_output == "":
         print(f"{GREEN}[PASS]{RESET} {os.path.relpath(test_file, TEST_DIR)}")
         return True

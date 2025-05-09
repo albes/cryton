@@ -46,6 +46,8 @@ typedef struct ExprHomSet {
 
 typedef struct {
     ObjString* name;
+    ObjString** params;
+    int paramCount;
     TmplObjects objects;
     TmplHomSet homset;
 } CategoryTemplate;

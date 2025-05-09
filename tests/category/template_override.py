@@ -1,4 +1,4 @@
-cat Z:
+cat Z():
     obj:
         1 2 3
     hom:

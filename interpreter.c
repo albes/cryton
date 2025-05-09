@@ -40,7 +40,7 @@ void initInterp() {
 }
 
 void freeInterp() {
-    freeTable(&interp.strings);
+    freeTable(&interp.strings, true);
 }
 
 BigInt interpretBinary(ExprBinary* expr) {
@@ -177,43 +177,110 @@ BigInt interpretIn(ExprIn* expr) {
     // bigint_from_int(0);
 }
 
-void interpretCategory(ExprCatInit* expr, ObjString* varName) {
+void freeRuntimeCategory(RuntimeCategory* cat) {
+    if (!cat) return;
 
+    if (cat->objects.values) {
+        free(cat->objects.values);
+    }
+
+    if (cat->homset.morphisms) {
+        for (int i = 0; i < cat->homset.count; ++i) {
+            if (cat->homset.morphisms[i].to) {
+                free(cat->homset.morphisms[i].to);
+            }
+        }
+        free(cat->homset.morphisms);
+    }
+
+    free(cat);
+}
+
+void interpretCategory(ExprCatInit* expr, ObjString* varName) {
     Value tmplVal;
     if (!tableGet(&interp.strings, expr->callee, &tmplVal) || tmplVal.type != VALUE_CAT_TEMPLATE) {
-        runtimeError("Expected a variable of type 'Category Template', but got '%.*s' of type '%s'.", expr->callee->length, expr->callee->chars, typeName(tmplVal.type));
+        runtimeError("Expected a variable of type 'Category Template', but got '%.*s' of type '%s'.",
+                     expr->callee->length, expr->callee->chars, typeName(tmplVal.type));
     }
 
     CategoryTemplate* cat = tmplVal.template;
-    RuntimeCategory* runtimeCat = malloc(sizeof(RuntimeCategory));
+    if (expr->argCount != cat->paramCount) {
+        runtimeError("Argument count does not match the parameters count of Category Template '%s' when creating Category '%s'.",
+                        cat->name->chars, varName->chars);
+    }
+
+    Table globalStrings = interp.strings;
+
+    Table templateArgs;
+    initTable(&templateArgs);
+
+    // Set up rollback
+    jmp_buf originalBuf;
+    memcpy(&originalBuf, &interp.errJmpBuf, sizeof(jmp_buf));
+
+    RuntimeCategory* runtimeCat = NULL;
+
+    if (setjmp(interp.errJmpBuf) != 0) {
+        // An error occurred, free temp state
+        interp.strings = globalStrings;
+        freeTable(&templateArgs, false);
+        freeRuntimeCategory(runtimeCat);  // safe even if NULL
+        memcpy(&interp.errJmpBuf, &originalBuf, sizeof(jmp_buf));
+        longjmp(interp.errJmpBuf, 1);
+    }
+
+    // Interpret arguments
+    for (int i = 0; i < expr->argCount; ++i) {
+        BigInt value = interpretExpr(expr->args[i]);
+        tableSet(&templateArgs, cat->params[i], (Value){ .type = VALUE_NUMBER, .number = value });
+    }
+
+    interp.strings = templateArgs;
+
+    runtimeCat = malloc(sizeof(RuntimeCategory));
+    runtimeCat->homset.morphisms = NULL;
     runtimeCat->name = varName;
 
+    // Objects
     runtimeCat->objects.count = cat->objects.count;
-    runtimeCat->objects.values = malloc(sizeof(Value) * cat->objects.count);
+    runtimeCat->objects.values = malloc(sizeof(BigInt) * cat->objects.count);
     for (int i = 0; i < cat->objects.count; i++) {
         runtimeCat->objects.values[i] = interpretExpr(cat->objects.values[i]);
     }
 
-    runtimeCat->homset.count = cat->homset.count;
+    // Morphisms
+    runtimeCat->homset.count = 0;
     runtimeCat->homset.morphisms = malloc(sizeof(Morphism) * cat->homset.count);
     for (int i = 0; i < cat->homset.count; i++) {
+        TmplAdjMorphisms* src = &cat->homset.morphisms[i]; // Template morphisms of type Expr*
         Morphism* dest = &runtimeCat->homset.morphisms[i];
-        TmplAdjMorphisms* src = &cat->homset.morphisms[i];
-
+    
         dest->from = interpretExpr(src->from);
         dest->toCount = src->toCount;
         dest->to = malloc(sizeof(BigInt) * src->toCount);
+    
+        runtimeCat->homset.count++;
         for (int j = 0; j < src->toCount; j++) {
             dest->to[j] = interpretExpr(src->to[j]);
         }
     }
 
+    // Done successfully
+    interp.strings = globalStrings;
+    freeTable(&templateArgs, false);
     saveCategory(runtimeCat);
+
+    // Restore old jump buffer (important!)
+    memcpy(&interp.errJmpBuf, &originalBuf, sizeof(jmp_buf));
 }
+
+
 
 void interpretCategoryTemplate(StmtCat* cat) {
     CategoryTemplate* templ = malloc(sizeof(CategoryTemplate));
     templ->name = cat->name;
+    templ->params = cat->params;
+    templ->paramCount = cat->paramCount;
     templ->objects = cat->objects;
     templ->homset = cat->homset;
 

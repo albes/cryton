@@ -2,7 +2,7 @@ a = 1
 b = 2
 c = 3
 
-cat T:
+cat T(a b c):
     obj:
         a b c
     hom:
@@ -14,8 +14,8 @@ instance = T(10 20 30)
 print(10 -> 20 in instance)
 print(30 in instance)
 
-# EXPECT: 0
-# EXPECT: 0
+# EXPECT: 1
+# EXPECT: 1
 
 a = 10
 b = 20

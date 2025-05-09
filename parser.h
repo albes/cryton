@@ -88,6 +88,8 @@ typedef struct {
 typedef struct {
     Stmt stmt;
     ObjString* name;
+    ObjString** params;
+    int paramCount;
     TmplObjects objects;
     TmplHomSet homset;
 } StmtCat;

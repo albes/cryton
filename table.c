@@ -50,14 +50,16 @@ void freeTemplate(CategoryTemplate* templ) {
 }
 
 // Free table and all contained strings
-void freeTable(Table* table) {
+void freeTable(Table* table, bool freeKeys) {
     if (table == NULL || table->entries == NULL)
         return;
 
     for (int i = 0; i < table->capacity; ++i) {
     Entry* entry = &table->entries[i];
     if (entry->key != NULL) {
-        freeString(entry->key);  // Clean key
+        if (freeKeys) {
+            freeString(entry->key);  // Clean key
+        }
         if (entry->value.type == VALUE_CATEGORY && entry->value.category != NULL) {
             freeCategory(entry->value.category);
         }

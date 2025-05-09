@@ -480,11 +480,13 @@ void parseCategoryBlock(TmplObjects* objects, TmplHomSet* homset) {
     consume(TOKEN_DEDENT, "Expect DEDENT after category block.");
 }
 
-StmtCat* makeStmtCat(ObjString* name, TmplObjects objects, TmplHomSet homset) {
+StmtCat* makeStmtCat(ObjString* name, ObjString** params, int paramCount, TmplObjects objects, TmplHomSet homset) {
     StmtCat* stmt = malloc(sizeof(StmtCat));
     stmt->stmt.type = STMT_CAT;
     stmt->stmt.next = NULL;
     stmt->name = name;
+    stmt->params = params;
+    stmt->paramCount = paramCount;
     stmt->objects = objects;
     stmt->homset = homset;
     return stmt;
@@ -494,13 +496,35 @@ Stmt* catStmt() {
     consume(TOKEN_IDENTIFIER, "Expect category name after 'cat'.");
     ObjString* name = copyString(parser.previous.start, parser.previous.length);
 
+    consume(TOKEN_LEFT_PAREN, "Expect '(' after category name.");
+
+    ObjString** params = NULL;
+    int paramCount = 0;
+    int capacity = 0;
+    
+    if (parser.current.type != (TOKEN_RIGHT_PAREN)) {
+        capacity = 4;
+        params = malloc(sizeof(ObjString*) * capacity);
+
+        do {
+            consume(TOKEN_IDENTIFIER, "Expect parameter name.");
+            if (paramCount >= capacity) {
+                capacity *= 2;
+                params = realloc(params, sizeof(ObjString*) * capacity);
+            }
+
+            params[paramCount++] = copyString(parser.previous.start, parser.previous.length);
+        } while (parser.current.type != TOKEN_RIGHT_PAREN);
+    }
+
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
     consume(TOKEN_COLON, "Expect ':' after category name.");
 
     TmplObjects objects;
     TmplHomSet homset;
     parseCategoryBlock(&objects, &homset);
 
-    return (Stmt*)makeStmtCat(name, objects, homset);
+    return (Stmt*)makeStmtCat(name, params, paramCount, objects, homset);
 }
 
 
@@ -626,6 +650,8 @@ static void freeStmtCat(StmtCat* stmt) {
     }
 
     free(stmt->homset.morphisms);
+    free(stmt->params);
+
     free(stmt);
 }
 
@@ -642,7 +668,7 @@ void freeAST(Stmt* stmts) {
             case STMT_PRINT  : freeStmtPrint((StmtPrint*)stmts);   break;
             case STMT_IF     : freeStmtIf((StmtIf*)stmts);         break;
             case STMT_WHILE  : freeStmtWhile((StmtWhile*)stmts);   break;
-            case STMT_CAT    : freeStmtCat((StmtCat*)stmts);       break;
+            case STMT_CAT    : freeStmtCat((StmtCat*)stmts);       break; //TODO repl problem
         }
         stmts = next;
     }

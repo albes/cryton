@@ -1,4 +1,4 @@
-cat X:
+cat X():
     obj:
         1 2 3
     hom:
