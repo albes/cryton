@@ -16,5 +16,12 @@ $(CCOMP_DIR)/cryton: *.c *.h
 test: cryton
 	python3 run_tests.py
 
+test-valgrind: cryton
+	python3 run_tests.py --valgrind
+
+test-all: cryton
+	python3 run_tests.py
+	python3 run_tests.py --valgrind
+	
 clean:
 	rm -rf $(BUILD_DIR) $(CCOMP_DIR)

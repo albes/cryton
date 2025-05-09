@@ -46,3 +46,5 @@ print(-9 in categ)
 # EXPECT: 0
 print(-5789654123 in categ)
 # EXPECT: 1
+
+p = 1
