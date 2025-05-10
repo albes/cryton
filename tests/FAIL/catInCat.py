@@ -19,4 +19,4 @@ c = X(b)
 print(1 in c)
 print(2 -> 3 in c)
 
-# EXPECT ERROR: Cannot assign variable 'b' of type 'Category'.
+# EXPECT ERROR: Cannot pass variable 'b' of type 'Category' to Category Template 'X'.

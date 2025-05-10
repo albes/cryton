@@ -328,7 +328,7 @@ static void repl() {
                 if (parse(line, &stmts)) {
                     runInterp(stmts);
                 }
-                freeAST(stmts);
+                // freeAST(stmts);
             }
 
             // Reset after interpreting

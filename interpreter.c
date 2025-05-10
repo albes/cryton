@@ -5,7 +5,7 @@
 #include "table.h"
 #include "interpreter.h"
 
-BigInt interpretExpr(Expr* expr);
+Value interpretExpr(Expr* expr);
 void interpret(Stmt* stmts);
 
 Interp interp;
@@ -35,6 +35,13 @@ const char* typeName(ValueType type) {
     }
 }
 
+Value makeValue(ValueType type, BigInt number) {
+    Value val;
+    val.type = type;
+    val.number = number;
+    return val;
+}
+
 void initInterp() {
     initTable(&interp.strings);
 }
@@ -43,46 +50,89 @@ void freeInterp() {
     freeTable(&interp.strings, true);
 }
 
-BigInt interpretBinary(ExprBinary* expr) {
-    BigInt result = bigint_from_int(0);
-    BigInt left = interpretExpr(expr->left);
-    BigInt right = interpretExpr(expr->right);
-    BigInt zero = bigint_from_int(0);
-    
-    switch (expr->operator) {
-        case TOKEN_PLUS        : bigint_add(&result, &left, &right); break;
-        case TOKEN_MINUS       : bigint_sub(&result, &left, &right); break;
-        case TOKEN_LESS        : bigint_init(&result, bigint_abs_compare(&left, &right) < 0); break;
-        case TOKEN_GREATER     : bigint_init(&result, bigint_abs_compare(&left, &right) > 0); break;
-        case TOKEN_EQUAL_EQUAL : bigint_init(&result, bigint_abs_compare(&left, &right) == 0); break;
-        case TOKEN_BANG_EQUAL  : bigint_init(&result, bigint_abs_compare(&left, &right) != 0); break;
-        case TOKEN_AND         : bigint_init(&result, bigint_abs_compare(&left, &zero) != 0
-                                                   && bigint_abs_compare(&right, &zero) != 0); break;
-        case TOKEN_OR          : bigint_init(&result, bigint_abs_compare(&left, &zero) != 0
-                                                   || bigint_abs_compare(&right, &zero) != 0); break;
+Value interpretBinary(ExprBinary* expr) {
+    Value leftVal = interpretExpr(expr->left);
+    Value rightVal = interpretExpr(expr->right);
+
+    if (leftVal.type != VALUE_NUMBER || rightVal.type != VALUE_NUMBER) {
+        runtimeError("Binary operators can only be applied to numbers.\n"
+                        "But got values of types '%s' and '%s'",
+                        typeName(leftVal.type), typeName(rightVal.type));
     }
 
-    return result;
-}
-
-BigInt interpretUnary(ExprUnary* expr) {
+    BigInt left = leftVal.number;
+    BigInt right = rightVal.number;
     BigInt result = bigint_from_int(0);
     BigInt zero = bigint_from_int(0);
-    BigInt val = interpretExpr(expr->right);
+
+    switch (expr->operator) {
+        case TOKEN_PLUS:
+            bigint_add(&result, &left, &right);
+            return makeValue(VALUE_NUMBER, result);
+
+        case TOKEN_MINUS:
+            bigint_sub(&result, &left, &right);
+            return makeValue(VALUE_NUMBER, result);
+
+        case TOKEN_LESS:
+            bigint_init(&result, bigint_abs_compare(&left, &right) < 0);
+            return makeValue(VALUE_NUMBER, result);
+
+        case TOKEN_GREATER:
+            bigint_init(&result, bigint_abs_compare(&left, &right) > 0);
+            return makeValue(VALUE_NUMBER, result);
+
+        case TOKEN_EQUAL_EQUAL:
+            bigint_init(&result, bigint_abs_compare(&left, &right) == 0);
+            return makeValue(VALUE_NUMBER, result);
+
+        case TOKEN_BANG_EQUAL:
+            bigint_init(&result, bigint_abs_compare(&left, &right) != 0);
+            return makeValue(VALUE_NUMBER, result);
+
+        case TOKEN_AND:
+            bigint_init(&result,
+                bigint_abs_compare(&left, &zero) != 0 &&
+                bigint_abs_compare(&right, &zero) != 0);
+            return makeValue(VALUE_NUMBER, result);
+
+        case TOKEN_OR:
+            bigint_init(&result,
+                bigint_abs_compare(&left, &zero) != 0 ||
+                bigint_abs_compare(&right, &zero) != 0);
+            return makeValue(VALUE_NUMBER, result);
+    }
+
+    return makeValue(VALUE_NULL, bigint_from_int(0)); // fallback for unknown operator
+}
+
+
+Value interpretUnary(ExprUnary* expr) {
+    Value val = interpretExpr(expr->right);
+
+    if (val.type != VALUE_NUMBER) {
+        runtimeError("Unary operator can only be applied to numbers.\n"
+                        "But got value of type '%s'",
+                        typeName(val.type));
+    }
+
+    BigInt result = val.number;
+    BigInt zero = bigint_from_int(0);
 
     switch (expr->operator) {
         case TOKEN_MINUS:
-            val.sign = -val.sign;
-            return val;
+            result.sign = -result.sign;
+            return makeValue(VALUE_NUMBER, result);
+
         case TOKEN_NOT:
-            if (bigint_abs_compare(&val, &zero) == 0)
-                bigint_init(&val, 1);
+            if (bigint_abs_compare(&result, &zero) == 0)
+                result = bigint_from_int(1);
             else
-                bigint_init(&val, 0);
-            return val;
+                result = bigint_from_int(0);
+            return makeValue(VALUE_NUMBER, result);
     }
 
-    return result;
+    return makeValue(VALUE_NULL, bigint_from_int(0));
 }
 
 void saveCategory(RuntimeCategory* cat) {
@@ -155,7 +205,7 @@ bool isMorphismInCategory(RuntimeCategory* cat, BigInt* from, BigInt* to) {
     return dfs(cat, from, to, visited, count);
 }
 
-BigInt interpretIn(ExprIn* expr) {
+Value interpretIn(ExprIn* expr) {
     if (expr->name->type != EXPR_VAR) {
         runtimeError("Expected a variable of type after 'in'.");
     }
@@ -165,17 +215,19 @@ BigInt interpretIn(ExprIn* expr) {
 
     if (expr->element->type == EXPR_MORPHISM) {
         ExprMorphism* morph = (ExprMorphism*)expr->element;
-        BigInt from = interpretExpr(morph->from);
-        BigInt to   = interpretExpr(morph->to);
+        Value fromVal = interpretExpr(morph->from);
+        Value toVal   = interpretExpr(morph->to);
 
-        return bigint_from_int(isMorphismInCategory(cat, &from, &to));
+        bool result = isMorphismInCategory(cat, &fromVal.number, &toVal.number);
+        return makeValue(VALUE_NUMBER, bigint_from_int(result));
     } else {
-        BigInt obj = interpretExpr(expr->element);
-        return bigint_from_int(isObjectInCategory(cat, &obj));
-    }
+        Value objVal = interpretExpr(expr->element);
 
-    // bigint_from_int(0);
+        bool result = isObjectInCategory(cat, &objVal.number);
+        return makeValue(VALUE_NUMBER, bigint_from_int(result));
+    }
 }
+
 
 void freeRuntimeCategory(RuntimeCategory* cat) {
     if (!cat) return;
@@ -231,13 +283,22 @@ void interpretCategory(ExprCatInit* expr, ObjString* varName) {
 
     // Interpret arguments
     for (int i = 0; i < expr->argCount; ++i) {
-        BigInt value = interpretExpr(expr->args[i]);
-        tableSet(&templateArgs, cat->params[i], (Value){ .type = VALUE_NUMBER, .number = value });
+        Value value = interpretExpr(expr->args[i]);
+
+        switch (value.type) {
+            case VALUE_CAT_TEMPLATE:    runtimeError("Cannot pass variable '%s' of type '%s' to Category Template '%s'.",
+                                            value.template->name->chars, typeName(value.type), tmplVal.template->name->chars);
+            case VALUE_CATEGORY:        runtimeError("Cannot pass variable '%s' of type '%s' to Category Template '%s'.",
+                                            value.category->name->chars, typeName(value.type), tmplVal.template->name->chars);
+        }
+
+        tableSet(&templateArgs, cat->params[i], value);
     }
 
     interp.strings = templateArgs;
 
     runtimeCat = malloc(sizeof(RuntimeCategory));
+    runtimeCat->objects.values = NULL;
     runtimeCat->homset.morphisms = NULL;
     runtimeCat->name = varName;
 
@@ -245,7 +306,7 @@ void interpretCategory(ExprCatInit* expr, ObjString* varName) {
     runtimeCat->objects.count = cat->objects.count;
     runtimeCat->objects.values = malloc(sizeof(BigInt) * cat->objects.count);
     for (int i = 0; i < cat->objects.count; i++) {
-        runtimeCat->objects.values[i] = interpretExpr(cat->objects.values[i]);
+        runtimeCat->objects.values[i] = interpretExpr(cat->objects.values[i]).number;
     }
 
     // Morphisms
@@ -255,13 +316,13 @@ void interpretCategory(ExprCatInit* expr, ObjString* varName) {
         TmplAdjMorphisms* src = &cat->homset.morphisms[i]; // Template morphisms of type Expr*
         Morphism* dest = &runtimeCat->homset.morphisms[i];
     
-        dest->from = interpretExpr(src->from);
+        dest->from = interpretExpr(src->from).number;
         dest->toCount = src->toCount;
         dest->to = malloc(sizeof(BigInt) * src->toCount);
     
         runtimeCat->homset.count++;
         for (int j = 0; j < src->toCount; j++) {
-            dest->to[j] = interpretExpr(src->to[j]);
+            dest->to[j] = interpretExpr(src->to[j]).number;
         }
     }
 
@@ -292,66 +353,66 @@ void interpretCategoryTemplate(StmtCat* cat) {
     tableSet(&interp.strings, templ->name, val);
 }
 
-BigInt interpretNumber(ExprNumber* expr) {
-    return expr->value;
+Value interpretNumber(ExprNumber* expr) {
+    return makeValue(VALUE_NUMBER, expr->value);
 }
 
-BigInt interpretVar(ExprVar* expr) {
+Value interpretVar(ExprVar* expr) {
     Value val;
     if (!tableGet(&interp.strings, expr->name, &val) || val.type == VALUE_NULL) {
         runtimeError("Undefined variable '%.*s'.", expr->name->length, expr->name->chars);
     }
-
-    if (val.type != VALUE_NUMBER) {
-        const char* typeStr;
-    
-        runtimeError("Cannot assign variable '%.*s' of type '%s'.",
-                     expr->name->length, expr->name->chars, typeName(val.type));
-    }
-    
-    return val.number;
+    return val;
 }
 
-BigInt interpretExpr(Expr* expr) {
+Value interpretExpr(Expr* expr) {
     switch (expr->type) {
-        case EXPR_BINARY : return interpretBinary((ExprBinary*)expr);
-        case EXPR_UNARY  : return interpretUnary((ExprUnary*)expr);
-        case EXPR_NUMBER : return interpretNumber((ExprNumber*)expr);
-        case EXPR_VAR    : return interpretVar((ExprVar*)expr);
-        case EXPR_IN     : return interpretIn((ExprIn*)expr);
+        case EXPR_BINARY:  return interpretBinary((ExprBinary*)expr);
+        case EXPR_UNARY:   return interpretUnary((ExprUnary*)expr);
+        case EXPR_NUMBER:  return interpretNumber((ExprNumber*)expr);
+        case EXPR_VAR:     return interpretVar((ExprVar*)expr);
+        case EXPR_IN:      return interpretIn((ExprIn*)expr);
     }
-    return bigint_from_int(0);
+    return makeValue(VALUE_NULL, bigint_from_int(0));
 }
 
 void interpretAssign(StmtAssign* stmt) {
     ExprVar* exprVar = (ExprVar*)stmt->left;
     ObjString* varName = exprVar->name;
 
-    Value val;
-
     if (stmt->right->type == EXPR_CAT_INIT) {
         ExprCatInit* init = (ExprCatInit*)stmt->right;
         
         interpretCategory(init, varName);
     } else {
-        BigInt number = interpretExpr(stmt->right);
-        val.type = VALUE_NUMBER;
-        val.number = number;
+        Value val = interpretExpr(stmt->right);
+        switch (val.type) {
+            case VALUE_CAT_TEMPLATE:    runtimeError("Cannot assign variable '%s' of type '%s'.",
+                                            val.template->name->chars, typeName(val.type));
+            case VALUE_CATEGORY:        runtimeError("Cannot assign variable '%s' of type '%s'.",
+                                            val.category->name->chars, typeName(val.type));
+        }
         tableSet(&interp.strings, varName, val);
     }
 }
 
 void interpretPrint(StmtPrint* stmt) {
-    BigInt num = interpretExpr(stmt->expr);
-    bigint_print(&num);
+    Value val = interpretExpr(stmt->expr);
+    switch (val.type) {
+        case VALUE_CAT_TEMPLATE:    runtimeError("Cannot print variable '%s' of type '%s'.",
+                                        val.template->name->chars, typeName(val.type));
+        case VALUE_CATEGORY:        runtimeError("Cannot print variable '%s' of type '%s'.",
+                                        val.category->name->chars, typeName(val.type));
+    }
+    bigint_print(&val.number);
     putchar('\n');
 }
 
 void interpretIf(StmtIf* stmt) {
-    BigInt val = interpretExpr(stmt->condition);
+    Value val = interpretExpr(stmt->condition);
     BigInt zero = bigint_from_int(0);
 
-    if (bigint_abs_compare(&val, &zero) != 0) {
+    if (bigint_abs_compare(&val.number, &zero) != 0) {
         interpret(stmt->thenBranch);
     } else {
         interpret(stmt->elseBranch);
@@ -359,10 +420,10 @@ void interpretIf(StmtIf* stmt) {
 }
 
 void interpretWhile(StmtWhile* stmt) {
-    BigInt val = interpretExpr(stmt->condition);
+    Value val = interpretExpr(stmt->condition);
     BigInt zero = bigint_from_int(0);
 
-    while (bigint_abs_compare(&val, &zero) != 0) {
+    while (bigint_abs_compare(&val.number, &zero) != 0) {
         interpret(stmt->body);
         val = interpretExpr(stmt->condition);
     }

@@ -10,4 +10,4 @@ a = X(a)
 
 print(a)
 
-# EXPECT ERROR: Cannot assign variable 'a' of type 'Category'.
+# EXPECT ERROR: Cannot print variable 'a' of type 'Category'.
