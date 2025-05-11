@@ -1,7 +1,7 @@
 a = (1 + -9 + 8)
 b = 1 and 6
 c = a or b
-d = a- (c + b)
+d = a - (c + b)
 
 print(a)
 # EXPECT: 0
