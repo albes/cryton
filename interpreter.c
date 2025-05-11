@@ -151,38 +151,72 @@ RuntimeCategory* getCategoryByName(ObjString* name) {
     return NULL;
 }
 
-bool isObjectInCategory(RuntimeCategory* cat, BigInt* obj) {
+bool isObjectInCategory(RuntimeCategory* cat, Value* obj) {
     for (int i = 0; i < cat->objects.count; i++) {
-        if (bigint_abs_compare(&cat->objects.values[i], obj) == 0) {
-            return true;
+        Value* current = &cat->objects.values[i];
+
+        if (obj->type != current->type) continue;
+
+        if (obj->type == VALUE_NUMBER) {
+            if (bigint_abs_compare(&current->number, &obj->number) == 0) return true;
+        } else if (obj->type == VALUE_CATEGORY) {
+            if (current->category == obj->category) return true;
         }
     }
     return false;
 }
 
-bool dfs(RuntimeCategory* cat, BigInt* current, BigInt* target, bool* visited, int objectCount) {
+
+bool dfs(RuntimeCategory* cat, Value* current, Value* target, bool* visited, int objectCount) {
     for (int i = 0; i < cat->homset.count; i++) {
         Morphism* m = &cat->homset.morphisms[i];
 
-        if (bigint_abs_compare(&m->from, current) != 0) continue;
+        if (m->from.type != current->type) continue;
+
+        bool fromMatch = false;
+        if (current->type == VALUE_NUMBER) {
+            fromMatch = bigint_abs_compare(&m->from.number, &current->number) == 0;
+        } else if (current->type == VALUE_CATEGORY) {
+            fromMatch = m->from.category == current->category;
+        }
+
+        if (!fromMatch) continue;
 
         for (int j = 0; j < m->toCount; j++) {
-            BigInt* neighbor = &m->to[j];
+            Value* neighbor = &m->to[j];
 
-            if (bigint_abs_compare(neighbor, target) == 0) return true;
+            bool typeMatch = false;
+            if (neighbor->type == target->type) typeMatch = true;
 
+            bool targetMatch = false;
+            if (typeMatch) {
+                if (target->type == VALUE_NUMBER) {
+                    targetMatch = bigint_abs_compare(&neighbor->number, &target->number) == 0;
+                } else if (target->type == VALUE_CATEGORY) {
+                    targetMatch = neighbor->category == target->category;
+                }
+            }
+
+            if (targetMatch) return true;
+
+            // Check index for further traversal
             int idx = -1;
             for (int k = 0; k < cat->objects.count; k++) {
-                if (bigint_abs_compare(neighbor, &cat->objects.values[k]) == 0) {
+                Value* check = &cat->objects.values[k];
+                if (check->type != neighbor->type) continue;
+
+                if ((check->type == VALUE_NUMBER &&
+                     bigint_abs_compare(&check->number, &neighbor->number) == 0) ||
+                    (check->type == VALUE_CATEGORY &&
+                     check->category == neighbor->category)) {
                     idx = k;
                     break;
                 }
             }
+
             if (idx >= 0 && !visited[idx]) {
                 visited[idx] = true;
-                if (dfs(cat, neighbor, target, visited, objectCount)) {
-                    return true;
-                }
+                if (dfs(cat, neighbor, target, visited, objectCount)) return true;
             }
         }
     }
@@ -190,13 +224,19 @@ bool dfs(RuntimeCategory* cat, BigInt* current, BigInt* target, bool* visited, i
     return false;
 }
 
-bool isMorphismInCategory(RuntimeCategory* cat, BigInt* from, BigInt* to) {
+bool isMorphismInCategory(RuntimeCategory* cat, Value* from, Value* to) {
     int count = cat->objects.count;
     bool visited[count];
     for (int i = 0; i < count; i++) visited[i] = false;
 
     for (int i = 0; i < count; i++) {
-        if (bigint_abs_compare(from, &cat->objects.values[i]) == 0) {
+        Value* val = &cat->objects.values[i];
+        if (val->type != from->type) continue;
+
+        if ((val->type == VALUE_NUMBER &&
+             bigint_abs_compare(&val->number, &from->number) == 0) ||
+            (val->type == VALUE_CATEGORY &&
+             val->category == from->category)) {
             visited[i] = true;
             break;
         }
@@ -218,12 +258,12 @@ Value interpretIn(ExprIn* expr) {
         Value fromVal = interpretExpr(morph->from);
         Value toVal   = interpretExpr(morph->to);
 
-        bool result = isMorphismInCategory(cat, &fromVal.number, &toVal.number);
+        bool result = isMorphismInCategory(cat, &fromVal, &toVal);
         return makeValue(VALUE_NUMBER, bigint_from_int(result));
     } else {
         Value objVal = interpretExpr(expr->element);
 
-        bool result = isObjectInCategory(cat, &objVal.number);
+        bool result = isObjectInCategory(cat, &objVal);
         return makeValue(VALUE_NUMBER, bigint_from_int(result));
     }
 }
@@ -288,8 +328,8 @@ void interpretCategory(ExprCatInit* expr, ObjString* varName) {
         switch (value.type) {
             case VALUE_CAT_TEMPLATE:    runtimeError("Cannot pass variable '%s' of type '%s' to Category Template '%s'.",
                                             value.template->name->chars, typeName(value.type), tmplVal.template->name->chars);
-            case VALUE_CATEGORY:        runtimeError("Cannot pass variable '%s' of type '%s' to Category Template '%s'.",
-                                            value.category->name->chars, typeName(value.type), tmplVal.template->name->chars);
+            // case VALUE_CATEGORY:        runtimeError("Cannot pass variable '%s' of type '%s' to Category Template '%s'.",
+            //                                 value.category->name->chars, typeName(value.type), tmplVal.template->name->chars);
         }
 
         tableSet(&templateArgs, cat->params[i], value);
@@ -304,9 +344,9 @@ void interpretCategory(ExprCatInit* expr, ObjString* varName) {
 
     // Objects
     runtimeCat->objects.count = cat->objects.count;
-    runtimeCat->objects.values = malloc(sizeof(BigInt) * cat->objects.count);
+    runtimeCat->objects.values = malloc(sizeof(Value) * cat->objects.count);
     for (int i = 0; i < cat->objects.count; i++) {
-        runtimeCat->objects.values[i] = interpretExpr(cat->objects.values[i]).number;
+        runtimeCat->objects.values[i] = interpretExpr(cat->objects.values[i]);
     }
 
     // Morphisms
@@ -315,14 +355,14 @@ void interpretCategory(ExprCatInit* expr, ObjString* varName) {
     for (int i = 0; i < cat->homset.count; i++) {
         TmplAdjMorphisms* src = &cat->homset.morphisms[i]; // Template morphisms of type Expr*
         Morphism* dest = &runtimeCat->homset.morphisms[i];
-    
-        dest->from = interpretExpr(src->from).number;
+        
+        dest->from = interpretExpr(src->from);
         dest->toCount = src->toCount;
-        dest->to = malloc(sizeof(BigInt) * src->toCount);
+        dest->to = malloc(sizeof(Value) * src->toCount);
     
         runtimeCat->homset.count++;
         for (int j = 0; j < src->toCount; j++) {
-            dest->to[j] = interpretExpr(src->to[j]).number;
+            dest->to[j] = interpretExpr(src->to[j]);
         }
     }
 

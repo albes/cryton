@@ -5,15 +5,33 @@
 
 typedef struct ObjString ObjString;
 typedef struct Expr Expr;
+typedef struct RuntimeCategory RuntimeCategory;
+typedef struct CategoryTemplate CategoryTemplate;
+
+typedef enum {
+    VALUE_NUMBER,
+    VALUE_CATEGORY,
+    VALUE_CAT_TEMPLATE,
+    VALUE_NULL
+} ValueType;
 
 typedef struct {
-    BigInt* values;
+    ValueType type;
+    union {
+        BigInt number;
+        RuntimeCategory* category;
+        CategoryTemplate* template;
+    };
+} Value;
+
+typedef struct {
+    Value* values;
     int count;
 } ObjectList;
 
 typedef struct {
-    BigInt from;
-    BigInt* to;
+    Value from;
+    Value* to;
     int toCount;
 } Morphism;
 
@@ -22,11 +40,11 @@ typedef struct {
     int count;
 } HomSet;
 
-typedef struct {
+struct RuntimeCategory {
     ObjString* name;
     ObjectList objects;
     HomSet homset;
-} RuntimeCategory;
+};
 
 typedef struct ExprObjects {
     Expr** values;
@@ -44,28 +62,12 @@ typedef struct ExprHomSet {
     int count;
 } TmplHomSet;
 
-typedef struct {
+struct CategoryTemplate {
     ObjString* name;
     ObjString** params;
     int paramCount;
     TmplObjects objects;
     TmplHomSet homset;
-} CategoryTemplate;
-
-typedef enum {
-    VALUE_NUMBER,
-    VALUE_CATEGORY,
-    VALUE_CAT_TEMPLATE,
-    VALUE_NULL
-} ValueType;
-
-typedef struct {
-    ValueType type;
-    union {
-        BigInt number;
-        RuntimeCategory* category;
-        CategoryTemplate* template;
-    };
-} Value;
+};
 
 #endif
