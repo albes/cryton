@@ -59,11 +59,11 @@ void freeTable(Table* table, bool freeKeys) {
     if (entry->key != NULL) {
         if (freeKeys) {
             freeString(entry->key);  // Clean key
+            if (entry->value.type == VALUE_CATEGORY && entry->value.category != NULL) {
+                freeCategory(entry->value.category);
+            }
         }
-        if (entry->value.type == VALUE_CATEGORY && entry->value.category != NULL) {
-            freeCategory(entry->value.category);
-        }
-        else if (entry->value.type == VALUE_CAT_TEMPLATE && entry->value.template != NULL) {
+        if (entry->value.type == VALUE_CAT_TEMPLATE && entry->value.template != NULL) {
             freeTemplate(entry->value.template);
         }
     }

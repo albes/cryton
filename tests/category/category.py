@@ -17,7 +17,7 @@ cat p(a b c):
         b -> c
 
 
-categ = p(a b c)
+categ = p(a+1 b c)
 
 a = 41234
 b = 51231
