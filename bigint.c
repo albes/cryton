@@ -165,3 +165,20 @@ void bigint_sub(BigInt* result, BigInt* a, BigInt* b) {
         result->length--;
     }
 }
+
+char* bigint_to_str_buf(BigInt* num, char* buffer, int buffer_size) {
+    int totalLen = num->length + (num->sign == -1 ? 1 : 0);
+    if (buffer_size <= totalLen) return NULL;  // Not enough space
+
+    int i = 0;
+    if (num->sign == -1) {
+        buffer[i++] = '-';
+    }
+
+    for (int j = num->length - 1; j >= 0; --j) {
+        buffer[i++] = num->digits[j];
+    }
+
+    buffer[i] = '\0';
+    return buffer;
+}

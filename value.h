@@ -70,4 +70,6 @@ struct CategoryTemplate {
     TmplHomSet homset;
 };
 
+bool valuesEqual(Value a, Value b);
+
 #endif

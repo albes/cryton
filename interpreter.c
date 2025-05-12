@@ -288,20 +288,6 @@ void freeRuntimeCategory(RuntimeCategory* cat) {
     free(cat);
 }
 
-bool valuesEqual(Value a, Value b) {
-    if (a.type != b.type) {
-        return false;
-    }
-
-    switch (a.type) {
-        case VALUE_NUMBER:
-            return (bigint_abs_compare(&a.number, &b.number) == 0);
-        default:
-            // compare pointers
-            return a.category == b.category;
-    }
-}
-
 bool listContainsValue(ObjectList list, Value value) {
     for (int i = 0; i < list.count; ++i) {
         if (valuesEqual(list.values[i], value)) {
@@ -310,6 +296,18 @@ bool listContainsValue(ObjectList list, Value value) {
     }
 
     return false;
+}
+
+void invalidMorphism(Table table, Value val) {
+    if(val.type == VALUE_NUMBER) {
+        char buf[BIGINT_MAX_DIGITS];
+        bigint_to_str_buf(&val.number, buf, sizeof(buf));
+        runtimeError("Undeclared object %s of type 'Number' inside morphism.", buf);
+    }
+    else {
+        ObjString* key = tableFindKey(&table, val);
+        runtimeError("Undeclared object '%s' of type 'Category' inside morphism.", key->chars);
+    }
 }
 
 void interpretCategory(ExprCatInit* expr, ObjString* varName) {
@@ -383,7 +381,7 @@ void interpretCategory(ExprCatInit* expr, ObjString* varName) {
         dest->from = interpretExpr(src->from);
 
         if (!listContainsValue(runtimeCat->objects, dest->from)) {
-            runtimeError("Undeclared object inside morphism.");
+            invalidMorphism(templateArgs, dest->from);
         }
 
         dest->toCount = src->toCount;
@@ -394,7 +392,7 @@ void interpretCategory(ExprCatInit* expr, ObjString* varName) {
             dest->to[j] = interpretExpr(src->to[j]);
 
             if (!listContainsValue(runtimeCat->objects, dest->to[j])) {
-                runtimeError("Undeclared object inside morphism.");
+                invalidMorphism(templateArgs, dest->to[j]);
             }
         }
     }

@@ -29,6 +29,8 @@ if 65 -> 5 in categ:
 else:
     print(0)
 
+# EXPECT ERROR: Undeclared object 4 of type 'Number' inside morphism.
+
 # EXPECT: 1
 
 print(41234 -> 41235 in gg)

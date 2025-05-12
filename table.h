@@ -17,6 +17,7 @@ typedef struct {
 
 void initTable(Table* table);
 void freeTable(Table* table, bool freeKeys);
+ObjString* tableFindKey(Table* table, Value val);
 bool tableGet(Table* table, ObjString* key, Value* value);
 bool tableSet(Table* table, ObjString* key, Value value);
 bool tableDelete(Table* table, ObjString* key);

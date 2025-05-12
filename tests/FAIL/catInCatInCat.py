@@ -1,11 +1,11 @@
-cat X(b):
+cat X(a):
     obj:
-        2 3 (1 in b) b
+        2 3 (1 in a) a
     hom:
         # (1 in b) -> 2
         2 -> 3
-        b -> 3 1
-        1 -> b
+        a -> 3 1
+        1 -> a
 
 cat Y(b):
     obj:

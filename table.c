@@ -118,6 +118,17 @@ static void adjustCapacity(Table* table, int capacity) {
     table->capacity = capacity;
 }
 
+ObjString* tableFindKey(Table* table, Value val) {
+    for (int i = 0; i < table->capacity; ++i) {
+        Entry* entry = &table->entries[i];
+        if (entry->key == NULL) continue;
+        
+        if (valuesEqual(val, entry->value)) {
+            return entry->key;
+        }
+    }
+    return NULL;
+}
 bool tableGet(Table* table, ObjString* key, Value* value) {
     if (table->count == 0) return false;
 
