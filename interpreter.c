@@ -288,6 +288,30 @@ void freeRuntimeCategory(RuntimeCategory* cat) {
     free(cat);
 }
 
+bool valuesEqual(Value a, Value b) {
+    if (a.type != b.type) {
+        return false;
+    }
+
+    switch (a.type) {
+        case VALUE_NUMBER:
+            return (bigint_abs_compare(&a.number, &b.number) == 0);
+        default:
+            // compare pointers
+            return a.category == b.category;
+    }
+}
+
+bool listContainsValue(ObjectList list, Value value) {
+    for (int i = 0; i < list.count; ++i) {
+        if (valuesEqual(list.values[i], value)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void interpretCategory(ExprCatInit* expr, ObjString* varName) {
     Value tmplVal;
     if (!tableGet(&interp.strings, expr->callee, &tmplVal) || tmplVal.type != VALUE_CAT_TEMPLATE) {
@@ -357,12 +381,21 @@ void interpretCategory(ExprCatInit* expr, ObjString* varName) {
         Morphism* dest = &runtimeCat->homset.morphisms[i];
         
         dest->from = interpretExpr(src->from);
+
+        if (!listContainsValue(runtimeCat->objects, dest->from)) {
+            runtimeError("Undeclared object inside morphism.");
+        }
+
         dest->toCount = src->toCount;
         dest->to = malloc(sizeof(Value) * src->toCount);
     
         runtimeCat->homset.count++;
         for (int j = 0; j < src->toCount; j++) {
             dest->to[j] = interpretExpr(src->to[j]);
+
+            if (!listContainsValue(runtimeCat->objects, dest->to[j])) {
+                runtimeError("Undeclared object inside morphism.");
+            }
         }
     }
 
