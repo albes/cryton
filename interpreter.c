@@ -259,8 +259,8 @@ Value interpretIn(ExprIn* expr) {
         Value toVal   = interpretExpr(morph->to);
         
         bool result = valuesEqual(fromVal, toVal)
-            ? isMorphismInCategory(cat, &fromVal, &toVal)
-            : isObjectInCategory(cat, &fromVal);
+            ? isObjectInCategory(cat, &fromVal)
+            : isMorphismInCategory(cat, &fromVal, &toVal);
 
         return makeValue(VALUE_NUMBER, bigint_from_int(result));
     } else {
