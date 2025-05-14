@@ -368,37 +368,90 @@ void interpretCategory(ExprCatInit* expr, ObjString* varName) {
     runtimeCat->name = varName;
 
     // Objects
-    runtimeCat->objects.count = cat->objects.count;
-    runtimeCat->objects.values = malloc(sizeof(Value) * cat->objects.count);
+    int objCapacity = cat->objects.count;
+    int morphCapacity = cat->homset.count;
+
+    runtimeCat->objects.count = 0;
+    runtimeCat->homset.count = 0;
+
+    runtimeCat->objects.values = malloc(sizeof(Value) * objCapacity);
+    runtimeCat->homset.morphisms = malloc(sizeof(Morphism) * morphCapacity);
+
     for (int i = 0; i < cat->objects.count; i++) {
-        runtimeCat->objects.values[i] = interpretExpr(cat->objects.values[i]);
+        Value val = interpretExpr(cat->objects.values[i]);
+
+        if (runtimeCat->objects.count >= objCapacity) {
+            objCapacity *= 2;
+            runtimeCat->objects.values = realloc(runtimeCat->objects.values, sizeof(Value) * objCapacity);
+        }
+
+        if (val.type == VALUE_CATEGORY) {
+            RuntimeCategory* nested = val.category;
+
+            // Copy objects
+            for (int j = 0; j < nested->objects.count; j++) {
+                if (runtimeCat->objects.count >= objCapacity) {
+                    objCapacity *= 2;
+                    runtimeCat->objects.values = realloc(runtimeCat->objects.values, sizeof(Value) * objCapacity);
+                }
+                runtimeCat->objects.values[runtimeCat->objects.count++] = nested->objects.values[j];
+            }
+
+            // Copy morphisms
+            for (int j = 0; j < nested->homset.count; j++) {
+                if (runtimeCat->homset.count >= morphCapacity) {
+                    morphCapacity *= 2;
+                    runtimeCat->homset.morphisms = realloc(runtimeCat->homset.morphisms, sizeof(Morphism) * morphCapacity);
+                }
+
+                Morphism* src = &nested->homset.morphisms[j];
+                Morphism* dest = &runtimeCat->homset.morphisms[runtimeCat->homset.count++];
+                dest->from = src->from;
+                dest->toCount = src->toCount;
+                dest->to = malloc(sizeof(Value) * src->toCount);
+                for (int k = 0; k < src->toCount; k++) {
+                    dest->to[k] = src->to[k];
+                }
+            }
+
+        } else {
+            runtimeCat->objects.values[runtimeCat->objects.count++] = val;
+        }
     }
 
-    // Morphisms
-    runtimeCat->homset.count = 0;
-    runtimeCat->homset.morphisms = malloc(sizeof(Morphism) * cat->homset.count);
+    // Now copy morphisms from the category template
     for (int i = 0; i < cat->homset.count; i++) {
-        TmplAdjMorphisms* src = &cat->homset.morphisms[i]; // Template morphisms of type Expr*
-        Morphism* dest = &runtimeCat->homset.morphisms[i];
-        
-        dest->from = interpretExpr(src->from);
+        if (runtimeCat->homset.count >= morphCapacity) {
+            morphCapacity *= 2;
+            runtimeCat->homset.morphisms = realloc(runtimeCat->homset.morphisms, sizeof(Morphism) * morphCapacity);
+        }
 
+        TmplAdjMorphisms* src = &cat->homset.morphisms[i];
+        Morphism* dest = &runtimeCat->homset.morphisms[runtimeCat->homset.count++];
+        memset(dest, 0, sizeof(Morphism));
+
+        dest->from = interpretExpr(src->from);
         if (!listContainsValue(runtimeCat->objects, dest->from)) {
             invalidMorphism(templateArgs, dest->from);
         }
 
         dest->toCount = src->toCount;
         dest->to = malloc(sizeof(Value) * src->toCount);
-    
-        runtimeCat->homset.count++;
+
         for (int j = 0; j < src->toCount; j++) {
             dest->to[j] = interpretExpr(src->to[j]);
-
             if (!listContainsValue(runtimeCat->objects, dest->to[j])) {
                 invalidMorphism(templateArgs, dest->to[j]);
             }
         }
     }
+
+    // Final trim
+    objCapacity = runtimeCat->objects.count;
+    runtimeCat->objects.values = realloc(runtimeCat->objects.values, sizeof(Value) * objCapacity);
+    morphCapacity = runtimeCat->homset.count;
+    runtimeCat->homset.morphisms = realloc(runtimeCat->homset.morphisms, sizeof(Morphism) * morphCapacity);
+
 
     // Done successfully
     interp.strings = globalStrings;

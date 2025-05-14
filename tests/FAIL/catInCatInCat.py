@@ -28,6 +28,9 @@ b = dummy()
 c = X(b)
 d = Y(c)
 
+
+# EXPECT ERROR: Undeclared object 'a' of type 'Category' inside morphism.
+
 print(b in d)
 # EXPECT: 0
 
