@@ -282,6 +282,9 @@ Stmt* block() {
     consume(TOKEN_NEWLINE, "Expect NEWLINE before block.");
     consume(TOKEN_INDENT, "Expect INDENT before block.");
     Stmt* block = statement();
+
+    if (block == NULL) return NULL; // just to be safe
+
     Stmt* tail = block;
 
     while (parser.current.type != TOKEN_EOF &&
@@ -335,6 +338,10 @@ static bool isTermStart(TokenType type) {
            type == TOKEN_MINUS;
 }
 
+static bool isExprStart(TokenType type) {
+    return type == TOKEN_NOT || isTermStart(type);
+}
+
 static ExprCatInit* makeExprCatInit(ObjString* callee, Expr** args, int argCount) {
     ExprCatInit* expr = malloc(sizeof(ExprCatInit));
     expr->expr.type = EXPR_CAT_INIT;
@@ -353,7 +360,7 @@ static Expr* parseMaybeCatInit(Expr* expr) {
     int count = 0;
     Expr** args = malloc(sizeof(Expr*) * capacity);
 
-    while (parser.current.type != TOKEN_RIGHT_PAREN && parser.current.type != TOKEN_EOF) {
+    while (isExprStart(parser.current.type)) {
         if (count >= capacity) {
             capacity *= 2;
             args = realloc(args, sizeof(Expr*) * capacity);
@@ -388,6 +395,7 @@ static void synchronize() {
             case TOKEN_IF:
             case TOKEN_WHILE:
             case TOKEN_PRINT:
+            case TOKEN_CAT:
             // case TOKEN_IDENTIFIER: // produces too many false errors
                 return;
         }
@@ -442,8 +450,7 @@ void parseHomset(TmplHomSet* homset) {
     consume(TOKEN_NEWLINE, "Expect NEWLINE after 'hom'.");
 
     if (match(TOKEN_INDENT)) {
-        while (parser.current.type != TOKEN_DEDENT &&
-               parser.current.type != TOKEN_EOF) {
+        while (isTermStart(parser.current.type)) {
             if (homset->count >= capacity) {
                 capacity *= 2;
                 homset->morphisms = realloc(homset->morphisms, sizeof(TmplAdjMorphisms) * capacity);
@@ -514,7 +521,7 @@ Stmt* catStmt() {
             }
 
             params[paramCount++] = copyString(parser.previous.start, parser.previous.length);
-        } while (parser.current.type != TOKEN_RIGHT_PAREN);
+        } while (parser.current.type == TOKEN_IDENTIFIER);
     }
 
     consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
@@ -555,7 +562,7 @@ bool parse(const char* source, Stmt** stmts) {
         *stmts = statement();
 
         if (*stmts != NULL)
-            stmts = &((*stmts)->next); // sorry
+            stmts = &((*stmts)->next); // sorry >> no
     }
 
     return !parser.hadError;
