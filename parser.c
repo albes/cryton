@@ -360,12 +360,12 @@ static Expr* parseMaybeCatInit(Expr* expr) {
     int count = 0;
     Expr** args = malloc(sizeof(Expr*) * capacity);
 
-    while (isExprStart(parser.current.type)) {
+    while (isTermStart(parser.current.type)) {
         if (count >= capacity) {
             capacity *= 2;
             args = realloc(args, sizeof(Expr*) * capacity);
         }
-        args[count++] = expression();
+        args[count++] = term();
     }
 
     consume(TOKEN_RIGHT_PAREN, "Expect ')' after category init arguments.");
