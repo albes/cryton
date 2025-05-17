@@ -14,7 +14,7 @@ print_stmt  : 'print' expression NEWLINE ;
 
 block       : NEWLINE INDENT statement+ DEDENT ;
 
-cat_init : IDENTIFIER '(' expression* ')' ;
+cat_init : IDENTIFIER '(' term* ')' ;
 category_block : NEWLINE INDENT 'obj' ':' object_block 'hom' ':' homset DEDENT ;
 object_block   :  NEWLINE INDENT objects DEDENT ;
 homset      :  NEWLINE (INDENT morphism+ DEDENT)? ;
@@ -29,7 +29,7 @@ else_block  : 'else' ':' block ;
 
 while_stmt  : 'while' expression ':' block ;
 
-category_stmt : 'cat' IDENTIFIER ':' category_block ;
+category_stmt : 'cat' IDENTIFIER '(' IDENTIFIER* ')' ':' category_block ;
 
 expression  : disjunction ;
 
