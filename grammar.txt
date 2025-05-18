@@ -7,10 +7,8 @@ statement  : assignment
            | category_stmt
            ;
 
-
 assignment  : IDENTIFIER '=' (expression | cat_init) NEWLINE ;
 print_stmt  : 'print' expression NEWLINE ;
-
 
 block       : NEWLINE INDENT statement+ DEDENT ;
 
