@@ -164,13 +164,54 @@ static Expr* comparison() {
     return expr;
 }
 
+ExprIn* makeInExpr(Expr* element, ExprVar* name) {
+    ExprIn* expr = malloc(sizeof(ExprIn));
+    expr->expr.type = EXPR_IN;
+    expr->element = element;
+    expr->name = name;
+    return expr;
+}
+
+ExprMorphism* makeMorphismExpr(Expr* from, Expr* to) {
+    ExprMorphism* expr = malloc(sizeof(ExprMorphism));
+    expr->type = EXPR_MORPHISM;
+    expr->from = from;
+    expr->to = to;
+    return expr;
+}
+
+
+Expr* membership() {
+    Expr* left = comparison();
+
+    if (match(TOKEN_ARROW)) {
+        Expr* right = comparison();
+        // if (!right) error("Expected expression after '->'.");
+
+        Expr* morph = (Expr*)makeMorphismExpr(left, right);
+
+        consume(TOKEN_IN, "Expected 'in' after morphism.");
+        consume(TOKEN_IDENTIFIER, "Expected identifier after morphism 'in'");
+        ExprVar* name = makeExprVar(parser.previous.start, parser.previous.length);
+
+        return (Expr*)makeInExpr(morph, name);
+    } else if (match(TOKEN_IN)) {
+        consume(TOKEN_IDENTIFIER, "Expected identifier after object 'in'");
+
+        ExprVar* name = makeExprVar(parser.previous.start, parser.previous.length);
+        return (Expr*)makeInExpr(left, name);
+    }
+
+    return left;
+}
+
 static Expr* inversion() {
     if (parser.current.type == TOKEN_NOT) {
         advance();
         return (Expr*)makeExprUnary(TOKEN_NOT, inversion());
     }
 
-    return comparison();
+    return membership();
 }
 
 static Expr* conjunction() {
@@ -241,6 +282,9 @@ Stmt* block() {
     consume(TOKEN_NEWLINE, "Expect NEWLINE before block.");
     consume(TOKEN_INDENT, "Expect INDENT before block.");
     Stmt* block = statement();
+
+    if (block == NULL) return NULL; // just to be safe
+
     Stmt* tail = block;
 
     while (parser.current.type != TOKEN_EOF &&
@@ -262,6 +306,7 @@ Stmt* whileStmt() {
 
     return (Stmt*)makeStmtWhile(condition, body);
 }
+
 
 Stmt* ifStmt() {
     Expr* condition = expression();
@@ -286,14 +331,60 @@ Stmt* print() {
     return stmt;
 }
 
-// TODO: add expression statements
+static bool isTermStart(TokenType type) {
+    return type == TOKEN_NUMBER ||
+           type == TOKEN_IDENTIFIER ||
+           type == TOKEN_LEFT_PAREN ||
+           type == TOKEN_MINUS;
+}
+
+static bool isExprStart(TokenType type) {
+    return type == TOKEN_NOT || isTermStart(type);
+}
+
+static ExprCatInit* makeExprCatInit(ObjString* callee, Expr** args, int argCount) {
+    ExprCatInit* expr = malloc(sizeof(ExprCatInit));
+    expr->expr.type = EXPR_CAT_INIT;
+    expr->callee = callee;
+    expr->args = args;
+    expr->argCount = argCount;
+    return expr;
+}
+
+static Expr* parseMaybeCatInit(Expr* expr) {
+    if (expr->type != EXPR_VAR) return expr;
+
+    if (!match(TOKEN_LEFT_PAREN)) return expr;
+
+    int capacity = 8;
+    int count = 0;
+    Expr** args = malloc(sizeof(Expr*) * capacity);
+
+    while (isTermStart(parser.current.type)) {
+        if (count >= capacity) {
+            capacity *= 2;
+            args = realloc(args, sizeof(Expr*) * capacity);
+        }
+        args[count++] = term();
+    }
+
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' after category init arguments.");
+
+    ObjString* callee = ((ExprVar*)expr)->name;
+    free(expr);
+
+    return (Expr*)makeExprCatInit(callee, args, count);
+}
+
 Stmt* assignment() {
     ExprVar* variable = makeExprVar(parser.previous.start, parser.previous.length);
     consume(TOKEN_EQUAL, "Expect '=' after variable.");
-    Stmt* stmt = (Stmt*)makeStmtAssign(variable, expression());
-    consume(TOKEN_NEWLINE, "Expect NEWLINE after assignment.");
 
-    return stmt;
+    Expr* expr = expression();
+    expr = parseMaybeCatInit(expr);
+
+    consume(TOKEN_NEWLINE, "Expect NEWLINE after assignment.");
+    return (Stmt*)makeStmtAssign(variable, expr);
 }
 
 static void synchronize() {
@@ -304,6 +395,7 @@ static void synchronize() {
             case TOKEN_IF:
             case TOKEN_WHILE:
             case TOKEN_PRINT:
+            case TOKEN_CAT:
             // case TOKEN_IDENTIFIER: // produces too many false errors
                 return;
         }
@@ -315,6 +407,134 @@ static void synchronize() {
     }
 }
 
+static void parseObjectSequence(Expr*** list, int* outCount, bool allow_newlines) {
+    int capacity = 8;
+    int count = 0;
+    Expr** values = malloc(sizeof(Expr*) * capacity);
+
+    while (isTermStart(parser.current.type)) {
+        if (count >= capacity) {
+            capacity *= 2;
+            values = realloc(values, sizeof(Expr*) * capacity);
+        }
+
+        values[count++] = term();
+
+        if (allow_newlines && parser.current.type == TOKEN_NEWLINE) {
+            advance();
+        }
+    }
+
+    *outCount = count;
+    *list = values;
+}
+
+
+
+TmplAdjMorphisms parseMorphism() {
+    TmplAdjMorphisms morph;
+    morph.from = term();
+
+    consume(TOKEN_ARROW, "Expect '->' in morphism.");
+    parseObjectSequence(&morph.to, &morph.toCount, false);
+
+    consume(TOKEN_NEWLINE, "Expect NEWLINE after morphism.");
+    return morph;
+}
+
+void parseHomset(TmplHomSet* homset) {
+    int capacity = 8;
+    homset->morphisms = malloc(sizeof(TmplAdjMorphisms) * capacity);
+    homset->count = 0;
+
+    consume(TOKEN_NEWLINE, "Expect NEWLINE after 'hom'.");
+
+    if (match(TOKEN_INDENT)) {
+        while (isTermStart(parser.current.type)) {
+            if (homset->count >= capacity) {
+                capacity *= 2;
+                homset->morphisms = realloc(homset->morphisms, sizeof(TmplAdjMorphisms) * capacity);
+            }
+
+            homset->morphisms[homset->count++] = parseMorphism();
+        }
+        consume(TOKEN_DEDENT, "Expect DEDENT after homset.");
+    }
+}
+
+void parseObjects(TmplObjects* objects) {
+    consume(TOKEN_NEWLINE, "Expect NEWLINE before object list.");
+    consume(TOKEN_INDENT, "Expect INDENT before object list.");
+
+    parseObjectSequence(&objects->values, &objects->count, true);
+    consume(TOKEN_DEDENT, "Expect DEDENT after object list.");
+}
+
+void parseCategoryBlock(TmplObjects* objects, TmplHomSet* homset) {
+    consume(TOKEN_NEWLINE, "Expect NEWLINE before category block.");
+    consume(TOKEN_INDENT, "Expect INDENT before category block.");
+
+    consume(TOKEN_OBJ, "Expect 'obj' in category block.");
+    consume(TOKEN_COLON, "Expect ':' after 'obj'.");
+
+    parseObjects(objects);
+
+    consume(TOKEN_HOM, "Expect 'hom' in category block.");
+    consume(TOKEN_COLON, "Expect ':' after 'hom'.");
+
+    parseHomset(homset);
+
+    consume(TOKEN_DEDENT, "Expect DEDENT after category block.");
+}
+
+StmtCat* makeStmtCat(ObjString* name, ObjString** params, int paramCount, TmplObjects objects, TmplHomSet homset) {
+    StmtCat* stmt = malloc(sizeof(StmtCat));
+    stmt->stmt.type = STMT_CAT;
+    stmt->stmt.next = NULL;
+    stmt->name = name;
+    stmt->params = params;
+    stmt->paramCount = paramCount;
+    stmt->objects = objects;
+    stmt->homset = homset;
+    return stmt;
+}
+
+Stmt* catStmt() {
+    consume(TOKEN_IDENTIFIER, "Expect category name after 'cat'.");
+    ObjString* name = copyString(parser.previous.start, parser.previous.length);
+
+    consume(TOKEN_LEFT_PAREN, "Expect '(' after category name.");
+
+    ObjString** params = NULL;
+    int paramCount = 0;
+    int capacity = 0;
+    
+    if (parser.current.type != (TOKEN_RIGHT_PAREN)) {
+        capacity = 4;
+        params = malloc(sizeof(ObjString*) * capacity);
+
+        do {
+            consume(TOKEN_IDENTIFIER, "Expect parameter name.");
+            if (paramCount >= capacity) {
+                capacity *= 2;
+                params = realloc(params, sizeof(ObjString*) * capacity);
+            }
+
+            params[paramCount++] = copyString(parser.previous.start, parser.previous.length);
+        } while (parser.current.type == TOKEN_IDENTIFIER);
+    }
+
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+    consume(TOKEN_COLON, "Expect ':' after category name.");
+
+    TmplObjects objects;
+    TmplHomSet homset;
+    parseCategoryBlock(&objects, &homset);
+
+    return (Stmt*)makeStmtCat(name, params, paramCount, objects, homset);
+}
+
+
 static Stmt* statement() {
     if (parser.panicMode)
         synchronize();
@@ -323,6 +543,7 @@ static Stmt* statement() {
     if (match(TOKEN_PRINT))      return      print();
     if (match(TOKEN_IF))         return     ifStmt();
     if (match(TOKEN_WHILE))      return  whileStmt();
+    if (match(TOKEN_CAT))        return    catStmt();
 
     errorAtCurrent("Expect statement.");
     synchronize();
@@ -341,7 +562,7 @@ bool parse(const char* source, Stmt** stmts) {
         *stmts = statement();
 
         if (*stmts != NULL)
-            stmts = &((*stmts)->next); // sorry
+            stmts = &((*stmts)->next); // sorry >> no
     }
 
     return !parser.hadError;
@@ -360,6 +581,27 @@ static void freeExprUnary(ExprUnary* expr) {
     free(expr);
 }
 
+static void freeExprIn(ExprIn* expr) {
+    freeExpr(expr->element);
+    if (expr->name != NULL)
+        free(expr->name);  // expr->name is an ExprVar* with allocated name string
+    free(expr);
+}
+
+static void freeExprMorphism(ExprMorphism* expr) {
+    freeExpr(expr->from);
+    freeExpr(expr->to);
+    free(expr);
+}
+
+static void freeExprCatInit(ExprCatInit* expr) {
+    for (int i = 0; i < expr->argCount; i++) {
+        freeExpr(expr->args[i]);
+    }
+    free(expr->args);
+    free(expr);
+}
+
 static void freeExpr(Expr* expr) {
     if (expr == NULL)
         return;
@@ -369,6 +611,11 @@ static void freeExpr(Expr* expr) {
         case EXPR_UNARY  : freeExprUnary((ExprUnary*)expr);   break;
         case EXPR_NUMBER : free(expr);                        break;
         case EXPR_VAR    : free(expr);                        break;
+        case EXPR_IN     : freeExprIn((ExprIn*)expr);         break;
+        case EXPR_MORPHISM: freeExprMorphism((ExprMorphism*)expr); break;
+        case EXPR_CAT_INIT: freeExprCatInit((ExprCatInit*)expr); break;
+
+
     }
 }
 
@@ -395,6 +642,28 @@ static void freeStmtWhile(StmtWhile* stmt) {
     free(stmt);
 }
 
+static void freeStmtCat(StmtCat* stmt) {
+    for (int i = 0; i < stmt->objects.count; i++) {
+        freeExpr(stmt->objects.values[i]);
+    }
+    free(stmt->objects.values);
+
+    for (int i = 0; i < stmt->homset.count; i++) {
+        freeExpr(stmt->homset.morphisms[i].from);
+        for (int j = 0; j < stmt->homset.morphisms[i].toCount; j++) {
+            freeExpr(stmt->homset.morphisms[i].to[j]);
+        }
+        free(stmt->homset.morphisms[i].to);
+    }
+
+    free(stmt->homset.morphisms);
+    free(stmt->params);
+
+    free(stmt);
+}
+
+
+
 void freeAST(Stmt* stmts) {
     if (stmts == NULL)
         return;
@@ -406,6 +675,7 @@ void freeAST(Stmt* stmts) {
             case STMT_PRINT  : freeStmtPrint((StmtPrint*)stmts);   break;
             case STMT_IF     : freeStmtIf((StmtIf*)stmts);         break;
             case STMT_WHILE  : freeStmtWhile((StmtWhile*)stmts);   break;
+            case STMT_CAT    : freeStmtCat((StmtCat*)stmts);       break; //TODO repl problem
         }
         stmts = next;
     }

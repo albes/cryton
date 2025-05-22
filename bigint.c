@@ -78,7 +78,7 @@ void bigint_print(BigInt* num) {
     for (int i = num->length - 1; i >= 0; --i) {
         putchar(num->digits[i]);
     }
-    putchar('\n');
+    // putchar('\n');
 }
 
 // Compare absolute values of two BigInts (returns 1 if a > b, -1 if a < b, 0 if equal)
@@ -164,4 +164,21 @@ void bigint_sub(BigInt* result, BigInt* a, BigInt* b) {
     while (result->length > 1 && result->digits[result->length - 1] == '0') {
         result->length--;
     }
+}
+
+char* bigint_to_str_buf(BigInt* num, char* buffer, int buffer_size) {
+    int totalLen = num->length + (num->sign == -1 ? 1 : 0);
+    if (buffer_size <= totalLen) return NULL;  // Not enough space
+
+    int i = 0;
+    if (num->sign == -1) {
+        buffer[i++] = '-';
+    }
+
+    for (int j = num->length - 1; j >= 0; --j) {
+        buffer[i++] = num->digits[j];
+    }
+
+    buffer[i] = '\0';
+    return buffer;
 }

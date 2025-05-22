@@ -24,5 +24,6 @@ void bigint_sub(BigInt* result, BigInt* a, BigInt* b);
 //returns 1 if a > b, -1 if a < b, 0 if equal
 int bigint_abs_compare(BigInt* a, BigInt* b);
 void bigint_print(BigInt* num);
+char* bigint_to_str_buf(BigInt* num, char* buffer, int buffer_size);
 
 #endif // BIGINT_H

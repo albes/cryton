@@ -15,16 +15,59 @@ void initTable(Table* table) {
     table->entries = NULL;
 }
 
+void freeCategory(RuntimeCategory* cat) {
+    if (cat == NULL) return;
+
+    // Free the array of objects
+    if (cat->objects.values != NULL) {
+        free(cat->objects.values);
+        cat->objects.values = NULL;
+    }
+
+    // Free each morphism's `to` array
+    for (int i = 0; i < cat->homset.count; i++) {
+        Morphism* m = &cat->homset.morphisms[i];
+        if (m->to != NULL) {
+            free(m->to);
+            m->to = NULL;
+        }
+    }
+
+    // Free the array of morphisms
+    if (cat->homset.morphisms != NULL) {
+        free(cat->homset.morphisms);
+        cat->homset.morphisms = NULL;
+    }
+
+    // Finally, free the category structure itself
+    free(cat);
+}
+
+void freeTemplate(CategoryTemplate* templ) {
+    if (templ == NULL) return;
+    
+    free(templ);
+}
+
 // Free table and all contained strings
-void freeTable(Table* table) {
+void freeTable(Table* table, bool freeKeys) {
     if (table == NULL || table->entries == NULL)
         return;
 
     for (int i = 0; i < table->capacity; ++i) {
-        Entry* entry = &table->entries[i];
-        if (entry->key != NULL)
-            freeString(entry->key);
+    Entry* entry = &table->entries[i];
+    if (entry->key != NULL) {
+        if (freeKeys) {
+            freeString(entry->key);  // Clean key
+            if (entry->value.type == VALUE_CATEGORY && entry->value.category != NULL) {
+                freeCategory(entry->value.category);
+            }
+        }
+        if (entry->value.type == VALUE_CAT_TEMPLATE && entry->value.template != NULL) {
+            freeTemplate(entry->value.template);
+        }
     }
+}
 
     free(table->entries);
     initTable(table);
@@ -75,6 +118,17 @@ static void adjustCapacity(Table* table, int capacity) {
     table->capacity = capacity;
 }
 
+ObjString* tableFindKey(Table* table, Value val) {
+    for (int i = 0; i < table->capacity; ++i) {
+        Entry* entry = &table->entries[i];
+        if (entry->key == NULL) continue;
+        
+        if (valuesEqual(val, entry->value)) {
+            return entry->key;
+        }
+    }
+    return NULL;
+}
 bool tableGet(Table* table, ObjString* key, Value* value) {
     if (table->count == 0) return false;
 
@@ -93,6 +147,16 @@ bool tableSet(Table* table, ObjString* key, Value value) {
 
     Entry* entry = findEntry(table->entries, table->capacity, key);
     bool isNewKey = entry->key == NULL;
+
+    if (!isNewKey) {
+        if (entry->value.type == VALUE_CATEGORY && entry->value.category != NULL) {
+            freeCategory(entry->value.category);
+        } else if (entry->value.type == VALUE_CAT_TEMPLATE && entry->value.template != NULL) {
+            freeTemplate(entry->value.template);
+        }
+    }
+    
+    
     if (isNewKey && entry->value.type == VALUE_NULL)
         table->count++;
 

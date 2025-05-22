@@ -54,6 +54,27 @@ static char* readFile(const char* path) {
     return buffer;
 }
 
+static void printTokens(char* source) {
+    initScanner(source);
+
+    int line = -1;
+
+    for (;;) {
+        Token token = scanToken();
+
+        if (token.line != line) {
+            printf("%4d ", token.line);
+            line = token.line;
+        } else {
+            printf("   | ");
+        }
+
+        printf("%s '%.*s'\n", TokenName[token.type], token.length, token.start);
+
+        if (token.type == TOKEN_EOF) break;
+    }
+}
+
 static void printExpr(Expr* expr) {
     if (expr == NULL) {
         printf("NULL\n");
@@ -74,10 +95,37 @@ static void printExpr(Expr* expr) {
 
         printf("Number ");
         bigint_print(&e->value);
+        putchar('\n');
     } else if (expr->type == EXPR_VAR) {
         ExprVar* e = (ExprVar*)expr;
 
         printf("Var %s\n", e->name->chars);
+    } else if (expr->type == EXPR_IN) {
+        ExprIn* e = (ExprIn*)expr;
+
+        printf("In Expression \n");
+        printExpr(e->element);
+
+        printf("In Var %s \n", e->name->name->chars);
+    } else if (expr->type == EXPR_MORPHISM) {
+        ExprMorphism* e = (ExprMorphism*)expr;
+
+        printf("Morphism\n");
+        printExpr(e->from);
+        printf("  | \n ");
+        printf(" V\n");
+        printExpr(e->to);
+
+    } else if (expr->type == EXPR_CAT_INIT) {
+        ExprCatInit* e = (ExprCatInit*)expr;
+
+        printf("Category Constructor Call:\n");
+        printf("  %.*s(", e->callee->length, e->callee->chars);
+        for (int i = 0; i < e->argCount; i++) {
+            printExpr(e->args[i]);
+            if (i < e->argCount - 1) printf(", ");
+        }
+        printf(")\n");
     } else {
         printf("Unknown expr\n");
     }
@@ -112,6 +160,35 @@ static void printStmtWhile(StmtWhile* stmt) {
     printStmt(stmt->body);
 }
 
+static void printStmtCat(StmtCat* stmt) {
+    printf("Category Template %s(", stmt->name->chars);
+    for (int i = 0; i < stmt->paramCount; ++i) {
+        printf("%s", stmt->params[i]->chars);
+        if (i < stmt->paramCount - 1) printf(" ");
+    }
+    printf(")\n");
+
+    printf("   Objects\n");
+    for (int i = 0; i < stmt->objects.count; ++i) {
+        printf("      ");
+        printExpr(stmt->objects.values[i]);
+        // putchar('\n');
+    }
+
+    printf("   Homset\n");
+    for (int i = 0; i < stmt->homset.count; ++i) {
+        printf("      ");
+        TmplAdjMorphisms* morphism = &stmt->homset.morphisms[i];
+        printExpr(morphism->from);
+        printf(" -> ");
+        for (int j = 0; j < morphism->toCount; ++j) {
+            printExpr(morphism->to[j]);
+            putchar(' ');
+        }
+        // putchar('\n');
+    }
+}
+
 static void printStmt(Stmt* stmt) {
     if (stmt == NULL) {
         printf("NULL\n");
@@ -125,6 +202,7 @@ static void printStmt(Stmt* stmt) {
             case STMT_PRINT    : printStmtPrint((StmtPrint*)stmt);   break;
             case STMT_IF       : printStmtIf((StmtIf*)stmt);         break;
             case STMT_WHILE    : printStmtWhile((StmtWhile*)stmt);   break;
+            case STMT_CAT      : printStmtCat((StmtCat*)stmt);       break;
             default            : printf("Unknown stmt\n");           break;
         }
         stmt = stmt->next;
@@ -132,33 +210,23 @@ static void printStmt(Stmt* stmt) {
     printf("End body\n");
 }
 
-static void runFile(const char* path) {
+static void runFile(const char* path, bool debug) {
     char* source = readFile(path);
-
-    initScanner(source);
-
-    // int line = -1;
-
-    // for (;;) {
-    //     Token token = scanToken();
-
-    //     if (token.line != line) {
-    //         printf("%4d ", token.line);
-    //         line = token.line;
-    //     } else {
-    //         printf("   | ");
-    //     }
-
-    //     printf("%s '%.*s'\n", TokenName[token.type], token.length, token.start);
-
-    //     if (token.type == TOKEN_EOF) break;
-    // }
-
     Stmt* stmts;
 
-    if (parse(source, &stmts)) {
-        interpret(stmts);
-        // printStmt(stmts);
+    if (debug) {
+        printTokens(source);
+    }
+
+    if (!parse(source, &stmts)) {
+        fprintf(stderr, "Could not parse file \"%s\".\n", path);
+        exit(74);
+    }
+
+    if (debug) {
+        printStmt(stmts);
+    } else {
+        runInterp(stmts);
     }
 
     freeAST(stmts);
@@ -198,7 +266,7 @@ static void repl() {
         if (*head != '\0') {
             Stmt* stmts;
             if (parse(line, &stmts)) {
-                interpret(stmts);
+                runInterp(stmts);
             }
             freeAST(stmts);
         }
@@ -258,9 +326,9 @@ static void repl() {
                 Stmt* stmts;
 
                 if (parse(line, &stmts)) {
-                    interpret(stmts);
+                    runInterp(stmts);
                 }
-                freeAST(stmts);
+                // freeAST(stmts);
             }
 
             // Reset after interpreting
@@ -274,14 +342,31 @@ static void repl() {
 
 int main(int argc, char* argv[]) {
     initInterp();
+    char *path = NULL;
+    bool debug = false;
 
-    if (argc == 1) {
-        repl();
-    } else if (argc == 2) {
-        runFile(argv[1]);
-    } else {
-        fprintf(stderr, "Usage: cryton [path]\n");
+    for (int i = 1; i < argc; ++i) {
+        switch (argv[i][0]) {
+            case '-':
+                if (strcmp(argv[i], "-d") == 0) {
+                    debug = true;
+                }
+                break;
+            default:
+                path = argv[i];
+                break;
+        }
+    }
+
+    if (argc > 3 || (!path && argc > 1)) {
+        fprintf(stderr, "Usage: cryton [[-d] <path>]\n");
         exit(64);
+    }
+
+    if (path) {
+        runFile(path, debug);
+    } else {
+        repl();
     }
 
     freeInterp();

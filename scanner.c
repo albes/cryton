@@ -20,7 +20,11 @@ const char* TokenName[] = {
 
     "TOKEN_NEWLINE", "TOKEN_INDENT", "TOKEN_DEDENT",
 
-    "TOKEN_EOF", "TOKEN_ERROR"
+    "TOKEN_EOF", "TOKEN_ERROR",
+
+    "TOKEN_CAT", "TOKEN_OBJ", "TOKEN_HOM", "TOKEN_ARROW",
+
+    "TOKEN_IN"
 };
 
 typedef struct {
@@ -139,11 +143,19 @@ static TokenType identifierType() {
                     case 's' : return checkKeyword(3, 1, "e", TOKEN_ELSE);
                 }
             }
-        case 'i' : return checkKeyword(1, 1, "f", TOKEN_IF);
+        case 'i':
+            if (scanner.current - scanner.start == 2 && scanner.start[1] == 'n')
+                return TOKEN_IN;
+            return checkKeyword(1, 1, "f", TOKEN_IF);
         case 'n' : return checkKeyword(1, 2, "ot", TOKEN_NOT);
-        case 'o' : return checkKeyword(1, 1, "r", TOKEN_OR);
+        case 'o' : 
+            if (scanner.current - scanner.start > 2 && scanner.start[1] == 'b')
+                return checkKeyword(2, 1, "j", TOKEN_OBJ);
+            return checkKeyword(1, 1, "r", TOKEN_OR);
         case 'p' : return checkKeyword(1, 4, "rint", TOKEN_PRINT);
         case 'w' : return checkKeyword(1, 4, "hile", TOKEN_WHILE);
+        case 'c' : return checkKeyword(1, 2, "at", TOKEN_CAT);
+        case 'h' : return checkKeyword(1, 2, "om", TOKEN_HOM);
     }
 
     return TOKEN_IDENTIFIER;
@@ -241,7 +253,8 @@ Token scanToken() {
         case ')' : return makeToken(TOKEN_RIGHT_PAREN);
         case ':' : return makeToken(TOKEN_COLON);
         case '+' : return makeToken(TOKEN_PLUS);
-        case '-' : return makeToken(TOKEN_MINUS);
+        case '-' : 
+            return makeToken(match('>') ? TOKEN_ARROW : TOKEN_MINUS);
         case '/' : return makeToken(TOKEN_SLASH);
         case '*' : return makeToken(TOKEN_STAR);
         case '<' : return makeToken(TOKEN_LESS);
