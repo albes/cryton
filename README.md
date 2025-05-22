@@ -17,3 +17,18 @@ Otherwise run:
 ```shell
 gcc bigint.c interpreter.c main.c object.c parser.c scanner.c table.c value.c -o build/cryton -lreadline
 ```
+
+## Run the interpreter:
+
+
+To start the interpreter in interactive mode (REPL), run:
+
+```shell
+./build/cryton
+```
+
+To run code in a file:
+
+```shell
+./build/cryton ./CodeExamples/Example_1.py
+```
