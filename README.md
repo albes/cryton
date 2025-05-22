@@ -40,7 +40,10 @@
   </g>
 </svg>
 
-![logo](https://github.com/user-attachments/assets/7a9f3508-8288-47ca-9696-b8ad3c37558d)
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/7a9f3508-8288-47ca-9696-b8ad3c37558d" width="200" alt="logo" />
+</p>
+
 
 # Cryton
 
