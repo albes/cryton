@@ -15,6 +15,7 @@ make
 Otherwise run:
 
 ```shell
+mkdir build
 gcc bigint.c interpreter.c main.c object.c parser.c scanner.c table.c value.c -o build/cryton -lreadline
 ```
 
